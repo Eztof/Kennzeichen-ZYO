@@ -1,4 +1,3 @@
-<!-- game.html -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -12,8 +11,7 @@
   <link rel="stylesheet" href="css/style.css">
   <style>
     /* Spaltenbreiten für Punkteliste */
-    .col-code     { width: 100px; }
-    .col-city     { width: 140px; }
+    .col-code { width: 120px; }
     .col-attempts { width: 80px; }
   </style>
 </head>
@@ -70,23 +68,21 @@
       <div id="score-summary" class="mb-3"></div>
       <table class="table table-striped">
         <colgroup>
-          <col>               <!-- Benutzer -->
-          <col class="col-code">   <!-- Kennzeichen -->
-          <col class="col-city">   <!-- Ort -->
-          <col>               <!-- Datum -->
-          <col class="col-attempts"> <!-- Erneut versucht -->
+          <col>
+          <col class="col-code">
+          <col>
+          <col class="col-attempts">
         </colgroup>
         <thead>
           <tr>
             <th>Benutzer</th>
-            <th>Kennzeichen</th>
             <th>Ort</th>
             <th>Datum</th>
             <th>Erneut versucht</th>
           </tr>
         </thead>
         <tbody id="score-table-body">
-          <tr><td colspan="5">Noch keine Picks</td></tr>
+          <tr><td colspan="4">Noch keine Picks</td></tr>
         </tbody>
       </table>
     </div>
@@ -105,7 +101,7 @@
         <input type="text" id="db-code" class="form-control" placeholder="z.B. B" />
       </div>
       <div class="mb-3">
-        <label for="db-city" class="form-label">Ort</lab‌​el>
+        <label for="db-city" class="form-label">Ort</label>
         <input type="text" id="db-city" class="form-control" placeholder="Berlin" />
       </div>
       <button id="btn-upload" class="btn btn-primary mb-3">Eintragen</button>
