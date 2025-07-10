@@ -25,8 +25,9 @@ const uploadMsg = document.getElementById('upload-msg');
 onAuthStateChanged(auth, async user => {
   if (!user) return location.href = 'index.html';
   const uDoc = await getDoc(doc(db, 'users', user.uid));
-  const name = uDoc.exists() ? uDoc.data().username : null;
-  if (name === 'Eztof_1') navUpload.classList.remove('d-none');
+  if (uDoc.exists() && uDoc.data().username === 'Eztof_1') {
+    navUpload.classList.remove('d-none');
+  }
 });
 
 // --- Logout ---
@@ -63,7 +64,6 @@ document.getElementById('btn-pick').onclick = async () => {
   if (snap.exists()) {
     msg.textContent = `"${code}" schon gepickt!`;
     inp.classList.add('border-danger');
-    // Versuche im Hintergrund zählen
     await updateDoc(ref, {
       attempts: increment(1),
       lastAttempt: serverTimestamp()
@@ -84,14 +84,14 @@ document.getElementById('btn-pick').onclick = async () => {
   }, 1500);
 };
 
-// --- Punktestand: sortiert nach Datum, KZN + Ort + Datum + Erneut versucht ---
+// --- Punktestand ---
 async function loadScore() {
   const summaryDiv = document.getElementById('score-summary');
   const tableBody  = document.getElementById('score-table-body');
   summaryDiv.innerHTML = '';
   tableBody.innerHTML  = '<tr><td colspan="5">Lade…</td></tr>';
 
-  // 1) Alle Picks laden
+  // 1) alle picks laden
   const pickSnap = await getDocs(query(collectionGroup(db, 'picks')));
   const userPicks = {};
 
@@ -104,39 +104,39 @@ async function loadScore() {
     userPicks[uid].push({ code: d.id, date, attempts: at });
   });
 
-  // 2) Nutzernamen laden
+  // 2) namen holen
   const names = {};
   for (const uid of Object.keys(userPicks)) {
-    const uDoc = await getDoc(doc(db, 'users', uid));
-    names[uid] = uDoc.exists() ? uDoc.data().username : uid;
+    const u = await getDoc(doc(db, 'users', uid));
+    names[uid] = u.exists() ? u.data().username : uid;
   }
 
-  // 3) Summary (nur Picks)
+  // 3) summary
   const badgeClasses = ['primary','success','info','warning','secondary'];
-  Object.keys(userPicks).forEach((uid, i) => {
+  Object.keys(userPicks).forEach((uid,i) => {
     const span = document.createElement('span');
-    span.className = `badge bg-${badgeClasses[i % badgeClasses.length]} me-2`;
+    span.className = `badge bg-${badgeClasses[i%badgeClasses.length]} me-2`;
     span.textContent = `${names[uid]}: ${userPicks[uid].length} Picks`;
     summaryDiv.appendChild(span);
   });
 
-  // 4) FlatList und sortieren (neueste zuerst)
+  // 4) flat & sort
   const flat = [];
-  Object.entries(userPicks).forEach(([uid, arr]) => {
-    arr.forEach(p => flat.push({ uid, ...p }));
-  });
-  flat.sort((a, b) => b.date - a.date);
+  Object.entries(userPicks).forEach(([uid,arr]) =>
+    arr.forEach(p => flat.push({ uid, ...p }))
+  );
+  flat.sort((a,b)=> b.date - a.date);
 
-  // 5) City-Namen für Codes laden
+  // 5) city map
   const cityMap = {};
   for (const item of flat) {
     if (!cityMap[item.code]) {
-      const pDoc = await getDoc(doc(db, 'plates', item.code));
+      const pDoc = await getDoc(doc(db,'plates',item.code));
       cityMap[item.code] = pDoc.exists() ? pDoc.data().city : item.code;
     }
   }
 
-  // 6) Tabelle füllen
+  // 6) render table
   const rowClasses = ['table-primary','table-success','table-info','table-warning','table-secondary'];
   tableBody.innerHTML = '';
   flat.forEach(item => {
@@ -148,24 +148,24 @@ async function loadScore() {
       <td>${item.code}</td>
       <td>${cityMap[item.code]}</td>
       <td>${item.date.toLocaleDateString()}</td>
-      <td>${item.attempts > 0 ? item.attempts : ''}</td>
+      <td>${item.attempts>0?item.attempts:''}</td>
     `;
     tableBody.appendChild(tr);
   });
 
-  if (flat.length === 0) {
+  if (flat.length===0) {
     tableBody.innerHTML = '<tr><td colspan="5">Noch keine Picks</td></tr>';
   }
 }
 
-// --- Karte (Leaflet & GeoJSON) bleibt unverändert ---
+// --- Karte (dein bestehender Code) ---
 let mapLoaded = false;
-async function loadMap() { /* Dein bestehender Code */ }
+async function loadMap() { /* ... */ }
 
-// Hilfsfunktionen …
-function loadScript(src){ return new Promise(r=>{const s=document.createElement('script');s.src=src;s.onload=r;document.head.append(s);}); }
-function loadCSS(href){ return new Promise(r=>{const l=document.createElement('link');l.rel='stylesheet';l.href=href;l.onload=r;document.head.append(l);}); }
+// Hilfsfunktionen für dynamisches Nachladen
+function loadScript(src){ return new Promise(r=>{const s=document.createElement('script');s.src=src;s.onload=r;document.head.append(s);});}
+function loadCSS(href){ return new Promise(r=>{const l=document.createElement('link');l.rel='stylesheet';l.href=href;l.onload=r;document.head.append(l);});}
 
-// --- Upload & JSON-Import bleiben unverändert ---
+// --- Upload & Import bleiben unverändert ---
 document.getElementById('btn-upload').onclick = async () => { /* ... */ };
 btnImport.onclick = async () => { /* ... */ };
