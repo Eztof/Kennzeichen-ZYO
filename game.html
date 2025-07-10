@@ -49,12 +49,10 @@
       <div id="pick-msg"></div>
     </div>
 
-    <!-- Punktestand -->
+    <!-- Punktestand mit Summary & sortierter Tabelle -->
     <div id="view-punktestand" class="view d-none">
       <h4>Punktestand</h4>
-      <!-- Zusammenfassung -->
       <div id="score-summary" class="mb-3"></div>
-      <!-- Detaillierte Tabelle -->
       <table class="table table-striped">
         <thead>
           <tr>
@@ -81,11 +79,13 @@
       <h4>Upload DB</h4>
       <div class="mb-3">
         <label for="db-code" class="form-label">Kennzeichen</label>
-        <input type="text" id="db-code" class="form-control" placeholder="z.B. B" />
+        <input type="text" id="db-code" class="form-control"
+               placeholder="z.B. B" />
       </div>
       <div class="mb-3">
         <label for="db-city" class="form-label">Ort</label>
-        <input type="text" id="db-city" class="form-control" placeholder="Berlin" />
+        <input type="text" id="db-city" class="form-control"
+               placeholder="Berlin" />
       </div>
       <button id="btn-upload" class="btn btn-primary mb-3">Eintragen</button>
       <hr>
