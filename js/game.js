@@ -34,7 +34,7 @@ onAuthStateChanged(auth, async user => {
 document.getElementById('btn-logout').onclick = () =>
   signOut(auth).then(() => location.href = 'index.html');
 
-// --- Navigation ---
+// --- Navigation zwischen Views ---
 const views = document.querySelectorAll('.view');
 document.querySelectorAll('.nav-link').forEach(a => {
   a.onclick = e => {
@@ -50,7 +50,7 @@ document.querySelectorAll('.nav-link').forEach(a => {
   };
 });
 
-// --- Picken ohne Hinweis auf Versuchs-Zählertext ---
+// --- Picken ohne "Versuch gezählt"-Hinweis ---
 document.getElementById('btn-pick').onclick = async () => {
   const inp  = document.getElementById('pick-input');
   const msg  = document.getElementById('pick-msg');
@@ -62,13 +62,13 @@ document.getElementById('btn-pick').onclick = async () => {
   const snap = await getDoc(ref);
 
   if (snap.exists()) {
-    // Versuche weiter zählen, aber nicht im UI erwähnen
+    // Zähle Versuche im Hintergrund, aber zeige nur:
+    msg.textContent = `"${code}" schon gepickt!`;
+    inp.classList.add('border-danger');
     await updateDoc(ref, {
       attempts: increment(1),
       lastAttempt: serverTimestamp()
     });
-    msg.textContent = `"${code}" schon gepickt!`;
-    inp.classList.add('border-danger');
   } else {
     await setDoc(ref, {
       pickedAt: serverTimestamp(),
@@ -85,61 +85,61 @@ document.getElementById('btn-pick').onclick = async () => {
   }, 1500);
 };
 
-// --- Punktestand sortiert nach Datum, Spalte "Erneut versucht" leer bei 0 ---
+// --- Punktestand: sortiert nach Datum, "Erneut versucht" leer bei 0 ---
 async function loadScore() {
   const summaryDiv = document.getElementById('score-summary');
   const tableBody  = document.getElementById('score-table-body');
   summaryDiv.innerHTML = '';
   tableBody.innerHTML  = '<tr><td colspan="4">Lade…</td></tr>';
 
-  // 1) Alle Picks holen
+  // 1) Alle Picks aus allen Nutzern holen
   const pickSnap = await getDocs(query(collectionGroup(db, 'picks')));
-  const userPicks = {}; // uid → Array von Picks
+  const userPicks = {};
 
   pickSnap.docs.forEach(d => {
     const uid  = d.ref.parent.parent.id;
-    const dat  = d.data();
-    const date = dat.pickedAt ? dat.pickedAt.toDate() : new Date(0);
-    const at   = dat.attempts || 0;
+    const data = d.data();
+    const date = data.pickedAt ? data.pickedAt.toDate() : new Date(0);
+    const at   = data.attempts || 0;
     if (!userPicks[uid]) userPicks[uid] = [];
     userPicks[uid].push({ code: d.id, date, attempts: at });
   });
 
-  // 2) Nutzernamen holen
+  // 2) Nutzernamen laden
   const names = {};
   for (const uid of Object.keys(userPicks)) {
-    const uDoc = await getDoc(doc(db, 'users', uid));
-    names[uid] = uDoc.exists() ? uDoc.data().username : uid;
+    const u = await getDoc(doc(db, 'users', uid));
+    names[uid] = u.exists() ? u.data().username : uid;
   }
 
-  // 3) Summary nur mit Picks
+  // 3) Summary (nur Picks, kein Versuchszähler)
   const badgeClasses = ['primary','success','info','warning','secondary'];
   Object.keys(userPicks).forEach((uid, i) => {
     const span = document.createElement('span');
-    span.className = `badge bg-${badgeClasses[i%badgeClasses.length]} me-2`;
+    span.className = `badge bg-${badgeClasses[i % badgeClasses.length]} me-2`;
     span.textContent = `${names[uid]}: ${userPicks[uid].length} Picks`;
     summaryDiv.appendChild(span);
   });
 
-  // 4) FlatList und nach Datum sortieren (neueste zuerst)
+  // 4) Alles in eine Liste packen & nach Datum (neueste oben) sortieren
   const flat = [];
   Object.entries(userPicks).forEach(([uid, arr]) => {
     arr.forEach(p => flat.push({ uid, ...p }));
   });
   flat.sort((a, b) => b.date - a.date);
 
-  // 5) Tabelle füllen
+  // 5) Tabelle rendern
   const rowClasses = ['table-primary','table-success','table-info','table-warning','table-secondary'];
   tableBody.innerHTML = '';
   flat.forEach(item => {
     const idx = Object.keys(userPicks).indexOf(item.uid) % rowClasses.length;
-    const tr  = document.createElement('tr');
+    const tr = document.createElement('tr');
     tr.className = rowClasses[idx];
     tr.innerHTML = `
       <td>${names[item.uid]}</td>
       <td>${item.code}</td>
       <td>${item.date.toLocaleString()}</td>
-      <td>${item.attempts>0?item.attempts:''}</td>
+      <td>${item.attempts > 0 ? item.attempts : ''}</td>
     `;
     tableBody.appendChild(tr);
   });
@@ -149,14 +149,14 @@ async function loadScore() {
   }
 }
 
-// --- Karte (bestehender Code) ---
+// --- Karte (Leaflet & GeoJSON) bleibt unverändert ---
 let mapLoaded = false;
-async function loadMap() { /* ... dein Leaflet/GeoJSON-Code ... */ }
+async function loadMap() { /* dein bestehender Code */ }
 
-// Hilfsfunktionen für dynamisches Nachladen
-function loadScript(src){ return new Promise(r=>{const s=document.createElement('script');s.src=src;s.onload=r;document.head.append(s);}); }
-function loadCSS(href){ return new Promise(r=>{const l=document.createElement('link');l.rel='stylesheet';l.href=href;l.onload=r;document.head.append(l);}); }
+// Hilfsfunktionen …
+function loadScript(src) { return new Promise(r => { const s = document.createElement('script'); s.src = src; s.onload = r; document.head.append(s); }); }
+function loadCSS(href)   { return new Promise(r => { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = href; l.onload = r; document.head.append(l); }); }
 
-// --- Upload & Import (unverändert) ---
+// --- Upload & JSON-Import bleiben unverändert ---
 document.getElementById('btn-upload').onclick = async () => { /* ... */ };
 btnImport.onclick = async () => { /* ... */ };
