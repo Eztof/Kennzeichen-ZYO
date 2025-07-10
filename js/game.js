@@ -5,9 +5,12 @@ import {
   signOut
 } from "https://www.gstatic.com/firebasejs/9.19.1/firebase-auth.js";
 import {
-  doc, setDoc, getDoc,
+  doc,
+  setDoc,
+  getDoc,
   collectionGroup,
-  query, getDocs,
+  query,
+  getDocs,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/9.19.1/firebase-firestore.js";
 
@@ -15,6 +18,7 @@ import {
 onAuthStateChanged(auth, user => {
   if (!user) location.href = 'index.html';
 });
+
 document.getElementById('btn-logout').onclick = () => {
   signOut(auth).then(() => location.href = 'index.html');
 };
@@ -41,9 +45,11 @@ document.getElementById('btn-pick').onclick = async () => {
   const msg = document.getElementById('pick-msg');
   const code = inp.value.trim().toUpperCase();
   if (!code) return;
+
   const uid = auth.currentUser.uid;
   const ref = doc(db, 'users', uid, 'picks', code);
   const snap = await getDoc(ref);
+
   if (snap.exists()) {
     msg.textContent = `"${code}" schon gepickt!`;
     inp.classList.add('border-danger');
@@ -52,10 +58,11 @@ document.getElementById('btn-pick').onclick = async () => {
     msg.textContent = `"${code}" wurde gepickt!`;
     inp.classList.add('border-success');
   }
+
   setTimeout(() => {
     msg.textContent = '';
     inp.value = '';
-    inp.classList.remove('border-success', 'border-danger');
+    inp.classList.remove('border-success','border-danger');
   }, 1500);
 };
 
@@ -64,25 +71,22 @@ async function loadScore() {
   const list = document.getElementById('score-list');
   list.innerHTML = 'Lade…';
 
-  // 1) Alle Picks aus allen Users laden
-  const q    = query(collectionGroup(db, 'picks'));
-  const snap = await getDocs(q);  // QuerySnapshot
+  // 1) Alle Picks aus allen Nutzern holen
+  const q             = query(collectionGroup(db, 'picks'));
+  const querySnapshot = await getDocs(q);
 
-  // 2) Zähle pro User
-  const counts   = {};  // uid → Anzahl
-  const usernames = {}; // uid → Nutzername
-
-  snap.docs.forEach(docSnap => {
+  // 2) Zähle pro Nutzer
+  const counts = {};   // uid → Anzahl
+  querySnapshot.docs.forEach(docSnap => {
     const uid = docSnap.ref.parent.parent.id;
     counts[uid] = (counts[uid] || 0) + 1;
   });
 
-  // 3) Nutzernamen holen
+  // 3) Nutzernamen zu den UIDs holen
+  const names = {};    // uid → username
   for (const uid of Object.keys(counts)) {
     const uDoc = await getDoc(doc(db, 'users', uid));
-    usernames[uid] = uDoc.exists()
-      ? uDoc.data().username
-      : uid;
+    names[uid] = uDoc.exists() ? uDoc.data().username : uid;
   }
 
   // 4) Sortieren und in die Liste schreiben
@@ -96,7 +100,7 @@ async function loadScore() {
     for (const [uid, cnt] of entries) {
       const li = document.createElement('li');
       li.className = 'list-group-item d-flex justify-content-between';
-      li.textContent = usernames[uid];
+      li.textContent = names[uid];
       const badge = document.createElement('span');
       badge.textContent = cnt;
       li.appendChild(badge);
@@ -118,19 +122,17 @@ async function loadMap() {
   ]);
 
   const map = L.map('map').setView([51.33, 10.45], 6);
-  L.tileLayer(
-    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    { attribution: '&copy; OSM' }
-  ).addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
 
-  // GeoJSON
+  // GeoJSON der Bundesländer
   const geo = await fetch('/data/germany-states.geojson').then(r => r.json());
 
-  // Welcher Bundesstaat wurde gepickt?
-  const picks      = await getDocs(query(collectionGroup(db, 'picks')));
-  const usedCodes  = new Set(picks.docs.map(d => d.id));
+  // Welche Bundesländer wurden gepickt?
+  const picksSnap = await getDocs(query(collectionGroup(db, 'picks')));
+  const usedCodes = new Set(picksSnap.docs.map(d => d.id));
   const statesUsed = new Set();
-
   for (const code of usedCodes) {
     const p = await getDoc(doc(db, 'plates', code));
     if (p.exists()) statesUsed.add(p.data().state);
@@ -140,26 +142,24 @@ async function loadMap() {
     style: feature => ({
       color: '#444',
       weight: 1,
-      fillColor: statesUsed.has(feature.properties.NAME_1)
-        ? '#58a'
-        : '#ccc',
+      fillColor: statesUsed.has(feature.properties.NAME_1) ? '#58a' : '#ccc',
       fillOpacity: 0.7
     })
   }).addTo(map);
 }
 
-// --- Helpers zum Nachladen ---
+// Hilfsfunktionen für dynamisches Nachladen
 function loadScript(src) {
-  return new Promise(resolve => {
+  return new Promise(r => {
     const s = document.createElement('script');
-    s.src = src; s.onload = resolve;
+    s.src = src; s.onload = r;
     document.head.append(s);
   });
 }
 function loadCSS(href) {
-  return new Promise(resolve => {
+  return new Promise(r => {
     const l = document.createElement('link');
-    l.rel = 'stylesheet'; l.href = href; l.onload = resolve;
+    l.rel = 'stylesheet'; l.href = href; l.onload = r;
     document.head.append(l);
   });
 }
