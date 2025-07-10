@@ -6,7 +6,6 @@ import {
 } from 'https://www.gstatic.com/firebasejs/9.19.1/firebase-auth.js';
 import {
   doc,
-  collection,
   setDoc,
   updateDoc,
   getDoc,
@@ -64,6 +63,7 @@ document.getElementById('btn-pick').onclick = async () => {
   if (snap.exists()) {
     msg.textContent = `"${code}" schon gepickt!`;
     inp.classList.add('border-danger');
+    // Versuche im Hintergrund zählen
     await updateDoc(ref, {
       attempts: increment(1),
       lastAttempt: serverTimestamp()
@@ -84,16 +84,16 @@ document.getElementById('btn-pick').onclick = async () => {
   }, 1500);
 };
 
-// --- Punktestand: sortiert nach Datum, Ort statt Code, Datum ohne Zeit ---
+// --- Punktestand: sortiert nach Datum, KZN + Ort + Datum + Erneut versucht ---
 async function loadScore() {
   const summaryDiv = document.getElementById('score-summary');
   const tableBody  = document.getElementById('score-table-body');
   summaryDiv.innerHTML = '';
-  tableBody.innerHTML  = '<tr><td colspan="4">Lade…</td></tr>';
+  tableBody.innerHTML  = '<tr><td colspan="5">Lade…</td></tr>';
 
-  // 1) Alle Picks aus allen Nutzern holen
+  // 1) Alle Picks laden
   const pickSnap = await getDocs(query(collectionGroup(db, 'picks')));
-  const userPicks = {}; // uid → Array von Picks
+  const userPicks = {};
 
   pickSnap.docs.forEach(d => {
     const uid  = d.ref.parent.parent.id;
@@ -104,14 +104,14 @@ async function loadScore() {
     userPicks[uid].push({ code: d.id, date, attempts: at });
   });
 
-  // 2) Nutzernamen holen
+  // 2) Nutzernamen laden
   const names = {};
   for (const uid of Object.keys(userPicks)) {
-    const u = await getDoc(doc(db, 'users', uid));
-    names[uid] = u.exists() ? u.data().username : uid;
+    const uDoc = await getDoc(doc(db, 'users', uid));
+    names[uid] = uDoc.exists() ? uDoc.data().username : uid;
   }
 
-  // 3) Zusammenfassung (nur Picks)
+  // 3) Summary (nur Picks)
   const badgeClasses = ['primary','success','info','warning','secondary'];
   Object.keys(userPicks).forEach((uid, i) => {
     const span = document.createElement('span');
@@ -120,14 +120,14 @@ async function loadScore() {
     summaryDiv.appendChild(span);
   });
 
-  // 4) Flachliste und sortieren (neueste zuerst)
+  // 4) FlatList und sortieren (neueste zuerst)
   const flat = [];
   Object.entries(userPicks).forEach(([uid, arr]) => {
     arr.forEach(p => flat.push({ uid, ...p }));
   });
   flat.sort((a, b) => b.date - a.date);
 
-  // 5) Stadt-Namen (city) laden für alle genutzten Codes
+  // 5) City-Namen für Codes laden
   const cityMap = {};
   for (const item of flat) {
     if (!cityMap[item.code]) {
@@ -145,6 +145,7 @@ async function loadScore() {
     tr.className = rowClasses[idx];
     tr.innerHTML = `
       <td>${names[item.uid]}</td>
+      <td>${item.code}</td>
       <td>${cityMap[item.code]}</td>
       <td>${item.date.toLocaleDateString()}</td>
       <td>${item.attempts > 0 ? item.attempts : ''}</td>
@@ -153,18 +154,18 @@ async function loadScore() {
   });
 
   if (flat.length === 0) {
-    tableBody.innerHTML = '<tr><td colspan="4">Noch keine Picks</td></tr>';
+    tableBody.innerHTML = '<tr><td colspan="5">Noch keine Picks</td></tr>';
   }
 }
 
-// --- Karte (dein existierender Leaflet/GeoJSON-Code) ---
+// --- Karte (Leaflet & GeoJSON) bleibt unverändert ---
 let mapLoaded = false;
-async function loadMap() { /* ... */ }
+async function loadMap() { /* Dein bestehender Code */ }
 
 // Hilfsfunktionen …
 function loadScript(src){ return new Promise(r=>{const s=document.createElement('script');s.src=src;s.onload=r;document.head.append(s);}); }
 function loadCSS(href){ return new Promise(r=>{const l=document.createElement('link');l.rel='stylesheet';l.href=href;l.onload=r;document.head.append(l);}); }
 
-// --- Upload & Import (unverändert) ---
+// --- Upload & JSON-Import bleiben unverändert ---
 document.getElementById('btn-upload').onclick = async () => { /* ... */ };
 btnImport.onclick = async () => { /* ... */ };
