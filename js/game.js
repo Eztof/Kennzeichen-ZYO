@@ -24,8 +24,8 @@ const uploadMsg = document.getElementById('upload-msg');
 // --- Auth & Admin-Check ---
 onAuthStateChanged(auth, async user => {
   if (!user) return location.href = 'index.html';
-  const uDoc = await getDoc(doc(db, 'users', user.uid));
-  if (uDoc.exists() && uDoc.data().username === 'Eztof_1') {
+  const u = await getDoc(doc(db, 'users', user.uid));
+  if (u.exists() && u.data().username === 'Eztof_1') {
     navUpload.classList.remove('d-none');
   }
 });
@@ -34,7 +34,7 @@ onAuthStateChanged(auth, async user => {
 document.getElementById('btn-logout').onclick = () =>
   signOut(auth).then(() => location.href = 'index.html');
 
-// --- Navigation zwischen Views ---
+// --- Navigation ---
 const views = document.querySelectorAll('.view');
 document.querySelectorAll('.nav-link').forEach(a => {
   a.onclick = e => {
@@ -64,6 +64,7 @@ document.getElementById('btn-pick').onclick = async () => {
   if (snap.exists()) {
     msg.textContent = `"${code}" schon gepickt!`;
     inp.classList.add('border-danger');
+    // Versuche heimlich mitzählen
     await updateDoc(ref, {
       attempts: increment(1),
       lastAttempt: serverTimestamp()
@@ -91,7 +92,7 @@ async function loadScore() {
   summaryDiv.innerHTML = '';
   tableBody.innerHTML  = '<tr><td colspan="5">Lade…</td></tr>';
 
-  // 1) alle picks laden
+  // 1) alle Picks abrufen
   const pickSnap = await getDocs(query(collectionGroup(db, 'picks')));
   const userPicks = {};
 
@@ -104,39 +105,39 @@ async function loadScore() {
     userPicks[uid].push({ code: d.id, date, attempts: at });
   });
 
-  // 2) namen holen
+  // 2) Nutzernamen holen
   const names = {};
   for (const uid of Object.keys(userPicks)) {
     const u = await getDoc(doc(db, 'users', uid));
     names[uid] = u.exists() ? u.data().username : uid;
   }
 
-  // 3) summary
+  // 3) Summary-Badges
   const badgeClasses = ['primary','success','info','warning','secondary'];
   Object.keys(userPicks).forEach((uid,i) => {
     const span = document.createElement('span');
-    span.className = `badge bg-${badgeClasses[i%badgeClasses.length]} me-2`;
+    span.className = `badge bg-${badgeClasses[i % badgeClasses.length]} me-2`;
     span.textContent = `${names[uid]}: ${userPicks[uid].length} Picks`;
     summaryDiv.appendChild(span);
   });
 
-  // 4) flat & sort
+  // 4) Flachliste & nach Datum sortieren (neueste oben)
   const flat = [];
-  Object.entries(userPicks).forEach(([uid,arr]) =>
+  Object.entries(userPicks).forEach(([uid, arr]) =>
     arr.forEach(p => flat.push({ uid, ...p }))
   );
-  flat.sort((a,b)=> b.date - a.date);
+  flat.sort((a,b) => b.date - a.date);
 
-  // 5) city map
+  // 5) Stadt-Namen für Kennzeichen laden
   const cityMap = {};
   for (const item of flat) {
     if (!cityMap[item.code]) {
-      const pDoc = await getDoc(doc(db,'plates',item.code));
+      const pDoc = await getDoc(doc(db, 'plates', item.code));
       cityMap[item.code] = pDoc.exists() ? pDoc.data().city : item.code;
     }
   }
 
-  // 6) render table
+  // 6) Tabelle füllen
   const rowClasses = ['table-primary','table-success','table-info','table-warning','table-secondary'];
   tableBody.innerHTML = '';
   flat.forEach(item => {
@@ -148,24 +149,60 @@ async function loadScore() {
       <td>${item.code}</td>
       <td>${cityMap[item.code]}</td>
       <td>${item.date.toLocaleDateString()}</td>
-      <td>${item.attempts>0?item.attempts:''}</td>
+      <td>${item.attempts > 0 ? item.attempts : ''}</td>
     `;
     tableBody.appendChild(tr);
   });
 
-  if (flat.length===0) {
+  if (flat.length === 0) {
     tableBody.innerHTML = '<tr><td colspan="5">Noch keine Picks</td></tr>';
   }
 }
 
-// --- Karte (dein bestehender Code) ---
+// --- Karte mit Leaflet + GeoJSON ---
 let mapLoaded = false;
-async function loadMap() { /* ... */ }
+async function loadMap() {
+  if (mapLoaded) return;
+  mapLoaded = true;
 
-// Hilfsfunktionen für dynamisches Nachladen
-function loadScript(src){ return new Promise(r=>{const s=document.createElement('script');s.src=src;s.onload=r;document.head.append(s);});}
-function loadCSS(href){ return new Promise(r=>{const l=document.createElement('link');l.rel='stylesheet';l.href=href;l.onload=r;document.head.append(l);});}
+  // Karte zentriert auf Deutschland
+  const map = L.map('map').setView([51.1657, 10.4515], 6);
 
-// --- Upload & Import bleiben unverändert ---
+  // OSM-Tiles
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+
+  // GeoJSON der Bundesländer
+  const geojson = await fetch('data/germany-states.geojson').then(r => r.json());
+
+  // Welche Bundesländer wurden gepickt?
+  const picksSnap = await getDocs(query(collectionGroup(db, 'picks')));
+  const used = new Set();
+  for (const d of picksSnap.docs) {
+    const code = d.id;
+    const pDoc = await getDoc(doc(db, 'plates', code));
+    if (pDoc.exists()) used.add(pDoc.data().state);
+  }
+
+  // Einfärben
+  L.geoJSON(geojson, {
+    style: f => {
+      const name = f.properties.NAME_1;
+      return {
+        color: '#444',
+        weight: 1,
+        fillColor: used.has(name) ? '#32a852' : '#ddd',
+        fillOpacity: used.has(name) ? 0.7 : 0.3
+      };
+    }
+  }).addTo(map);
+}
+
+// Hilfsfunktionen (falls benötigt)
+function loadScript(src){ return new Promise(r=>{const s=document.createElement('script');s.src=src;s.onload=r;document.head.append(s);}); }
+function loadCSS(href){ return new Promise(r=>{const l=document.createElement('link');l.rel='stylesheet';l.href=href;l.onload=r;document.head.append(l);}); }
+
+// --- Upload- und Import-Handler bleiben unverändert ---
 document.getElementById('btn-upload').onclick = async () => { /* ... */ };
 btnImport.onclick = async () => { /* ... */ };
