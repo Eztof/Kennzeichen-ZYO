@@ -3,7 +3,7 @@ import { auth, db } from './firebase-config.js';
 import {
   onAuthStateChanged,
   signOut
-} from "https://www.gstatic.com/firebasejs/9.19.1/firebase-auth.js";
+} from 'https://www.gstatic.com/firebasejs/9.19.1/firebase-auth.js';
 import {
   doc,
   setDoc,
@@ -12,34 +12,32 @@ import {
   query,
   getDocs,
   serverTimestamp
-} from "https://www.gstatic.com/firebasejs/9.19.1/firebase-firestore.js";
+} from 'https://www.gstatic.com/firebasejs/9.19.1/firebase-firestore.js';
 
-// Elemente
-const navUpload    = document.getElementById('nav-upload');
-const viewUpload   = document.getElementById('view-upload');
-const uploadMsg    = document.getElementById('upload-msg');
+// UI-Elemente
+const navUpload  = document.getElementById('nav-upload');
+const btnImport  = document.getElementById('btn-import');
+const uploadMsg  = document.getElementById('upload-msg');
 
-// --- Auth-Guard, Admin-Check & Logout ---
+// --- Auth & Admin-Check ---
 onAuthStateChanged(auth, async user => {
   if (!user) {
     location.href = 'index.html';
     return;
   }
-
   // Profil laden
   const uDoc = await getDoc(doc(db, 'users', user.uid));
   const name = uDoc.exists() ? uDoc.data().username : null;
-
-  // Upload-DB nur für Eztof_1 freischalten
   if (name === 'Eztof_1') {
     navUpload.classList.remove('d-none');
   }
-
 });
+
+// --- Logout ---
 document.getElementById('btn-logout').onclick = () =>
   signOut(auth).then(() => location.href = 'index.html');
 
-// --- Navigation zwischen Views ---
+// --- Navigation ---
 const views = document.querySelectorAll('.view');
 document.querySelectorAll('.nav-link').forEach(a => {
   a.onclick = e => {
@@ -55,10 +53,10 @@ document.querySelectorAll('.nav-link').forEach(a => {
   };
 });
 
-// --- Picken-Funktion bleibt unverändert ---
+// --- Picken ---
 document.getElementById('btn-pick').onclick = async () => {
-  const inp = document.getElementById('pick-input');
-  const msg = document.getElementById('pick-msg');
+  const inp  = document.getElementById('pick-input');
+  const msg  = document.getElementById('pick-msg');
   const code = inp.value.trim().toUpperCase();
   if (!code) return;
 
@@ -82,14 +80,15 @@ document.getElementById('btn-pick').onclick = async () => {
   }, 1500);
 };
 
-// --- Punktestand berechnen und anzeigen bleibt unverändert ---
+// --- Punktestand ---
 async function loadScore() {
   const list = document.getElementById('score-list');
   list.innerHTML = 'Lade…';
 
-  const q             = query(collectionGroup(db, 'picks'));
-  const snap          = await getDocs(q);
-  const counts        = {};
+  const q    = query(collectionGroup(db, 'picks'));
+  const snap = await getDocs(q);
+  const counts = {};
+
   snap.docs.forEach(d => {
     const uid = d.ref.parent.parent.id;
     counts[uid] = (counts[uid] || 0) + 1;
@@ -101,29 +100,75 @@ async function loadScore() {
     names[uid] = uDoc.exists() ? uDoc.data().username : uid;
   }
 
-  const entries = Object.entries(counts)
-    .sort((a,b)=>b[1]-a[1]);
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   list.innerHTML = '';
-  if (!entries.length) {
+  if (entries.length === 0) {
     list.innerHTML = '<li class="list-group-item">Noch keine Picks</li>';
   } else {
-    for (const [uid, cnt] of entries) {
+    entries.forEach(([uid, cnt]) => {
       const li = document.createElement('li');
       li.className = 'list-group-item d-flex justify-content-between';
       li.textContent = names[uid];
-      const span = document.createElement('span');
-      span.textContent = cnt;
-      li.appendChild(span);
+      const badge = document.createElement('span');
+      badge.textContent = cnt;
+      li.appendChild(badge);
       list.appendChild(li);
-    }
+    });
   }
 }
 
-// --- Karte bleibt unverändert ---
+// --- Karte ---
 let mapLoaded = false;
-async function loadMap() { /* ... dein bestehender Code ... */ }
+async function loadMap() {
+  if (mapLoaded) return;
+  mapLoaded = true;
 
-// --- Upload DB: Einzel-Upload bleibt unverändert ---
+  await Promise.all([
+    loadScript('https://unpkg.com/leaflet@1.9.3/dist/leaflet.js'),
+    loadCSS('https://unpkg.com/leaflet@1.9.3/dist/leaflet.css')
+  ]);
+
+  const map = L.map('map').setView([51.33, 10.45], 6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  const geo      = await fetch('/data/germany-states.geojson').then(r => r.json());
+  const picksSnap = await getDocs(query(collectionGroup(db, 'picks')));
+  const usedCodes = new Set(picksSnap.docs.map(d => d.id));
+  const statesUsed = new Set();
+  for (const code of usedCodes) {
+    const pSnap = await getDoc(doc(db, 'plates', code));
+    if (pSnap.exists()) statesUsed.add(pSnap.data().state);
+  }
+
+  L.geoJSON(geo, {
+    style: feature => ({
+      color: '#444',
+      weight: 1,
+      fillColor: statesUsed.has(feature.properties.NAME_1) ? '#58a' : '#ccc',
+      fillOpacity: 0.7
+    })
+  }).addTo(map);
+}
+
+function loadScript(src) {
+  return new Promise(r => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = r;
+    document.head.append(s);
+  });
+}
+
+function loadCSS(href) {
+  return new Promise(r => {
+    const l = document.createElement('link');
+    l.rel = 'stylesheet'; l.href = href; l.onload = r;
+    document.head.append(l);
+  });
+}
+
+// --- Einzel-Upload DB ---
 document.getElementById('btn-upload').onclick = async () => {
   const code = document.getElementById('db-code').value.trim().toUpperCase();
   const city = document.getElementById('db-city').value.trim();
@@ -133,27 +178,26 @@ document.getElementById('btn-upload').onclick = async () => {
     return;
   }
   try {
-    await setDoc(doc(db,'plates', code), { city });
+    await setDoc(doc(db, 'plates', code), { city });
     uploadMsg.textContent = `"${code}" eingetragen.`;
     uploadMsg.className = 'text-success';
-  } catch(e) {
-    uploadMsg.textContent = e.message;
+  } catch (e) {
+    uploadMsg.textContent = 'Fehler: ' + e.message;
     uploadMsg.className = 'text-danger';
   }
 };
 
-// --- JSON-Import: plates.json in Firestore exportieren ---
-document.getElementById('btn-import').onclick = async () => {
+// --- JSON-Import ---
+btnImport.onclick = async () => {
   uploadMsg.textContent = 'Import läuft…';
   uploadMsg.className = '';
   try {
     const resp = await fetch('plates.json');
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
     let count = 0;
     for (const code in data) {
-      const city = data[code].city;
-      await setDoc(doc(db, 'plates', code), { city });
+      await setDoc(doc(db, 'plates', code), { city: data[code].city });
       count++;
     }
     uploadMsg.textContent = `${count} Kennzeichen importiert.`;
