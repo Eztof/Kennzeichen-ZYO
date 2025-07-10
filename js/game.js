@@ -69,27 +69,21 @@ async function loadScore() {
   const list = document.getElementById('score-list');
   list.innerHTML = 'Lade…';
 
-  // 1) Alle Picks aus allen Nutzern laden
   const q             = query(collectionGroup(db, 'picks'));
   const querySnapshot = await getDocs(q);
+  const counts        = {};
 
-  // 2) Pro Nutzer ID die Anzahl zählen
-  const counts = {};
   querySnapshot.docs.forEach(docSnap => {
     const uid = docSnap.ref.parent.parent.id;
     counts[uid] = (counts[uid] || 0) + 1;
   });
 
-  // 3) Für jede UID den echten Nutzernamen aus Firestore holen
   const names = {};
   for (const uid of Object.keys(counts)) {
     const uDoc = await getDoc(doc(db, 'users', uid));
-    names[uid] = uDoc.exists()
-      ? uDoc.data().username   // <–– hier holen wir "Eztof_1"
-      : uid;                   // Fallback auf UID
+    names[uid] = uDoc.exists() ? uDoc.data().username : uid;
   }
 
-  // 4) Sortieren und in die UI schreiben
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   list.innerHTML = '';
   if (entries.length === 0) {
@@ -107,7 +101,7 @@ async function loadScore() {
   }
 }
 
-// --- Karte (Leaflet & GeoJSON) bleibt unverändert ---
+// --- Karte (Leaflet & GeoJSON) ---
 let mapLoaded = false;
 async function loadMap() {
   if (mapLoaded) return;
@@ -138,20 +132,20 @@ async function loadMap() {
 function loadScript(src){ return new Promise(r=>{const s=document.createElement('script');s.src=src;s.onload=r;document.head.append(s);}); }
 function loadCSS(href){ return new Promise(r=>{const l=document.createElement('link');l.rel='stylesheet';l.href=href;l.onload=r;document.head.append(l);}); }
 
-// --- Upload DB bleibt gleich ---
+// --- Upload DB (ohne Bundesland) ---
 document.getElementById('btn-upload').onclick = async () => {
-  const code  = document.getElementById('db-code').value.trim().toUpperCase();
-  const city  = document.getElementById('db-city').value.trim();
-  const state = document.getElementById('db-state').value;
-  const msg   = document.getElementById('upload-msg');
+  const code = document.getElementById('db-code').value.trim().toUpperCase();
+  const city = document.getElementById('db-city').value.trim();
+  const msg  = document.getElementById('upload-msg');
 
   if (!code || !city) {
     msg.textContent = 'Bitte alle Felder ausfüllen.';
     msg.className = 'text-danger';
     return;
   }
+
   try {
-    await setDoc(doc(db, 'plates', code), { city, state });
+    await setDoc(doc(db, 'plates', code), { city });
     msg.textContent = `"${code}" wurde eingetragen.`;
     msg.className = 'text-success';
     document.getElementById('db-code').value = '';
