@@ -18,12 +18,10 @@ import {
 onAuthStateChanged(auth, user => {
   if (!user) location.href = 'index.html';
 });
-
-document.getElementById('btn-logout').onclick = () => {
+document.getElementById('btn-logout').onclick = () =>
   signOut(auth).then(() => location.href = 'index.html');
-};
 
-// --- Navigation ---
+// --- Navigation zwischen Views ---
 const views = document.querySelectorAll('.view');
 document.querySelectorAll('.nav-link').forEach(a => {
   a.onclick = e => {
@@ -39,7 +37,7 @@ document.querySelectorAll('.nav-link').forEach(a => {
   };
 });
 
-// --- Picken ---
+// --- Picken-Funktion ---
 document.getElementById('btn-pick').onclick = async () => {
   const inp = document.getElementById('pick-input');
   const msg = document.getElementById('pick-msg');
@@ -66,33 +64,33 @@ document.getElementById('btn-pick').onclick = async () => {
   }, 1500);
 };
 
-// --- Punktestand berechnen ---
+// --- Punktestand berechnen und anzeigen ---
 async function loadScore() {
   const list = document.getElementById('score-list');
   list.innerHTML = 'Lade…';
 
-  // 1) Alle Picks aus allen Nutzern holen
+  // 1) Alle Picks aus allen Nutzern laden
   const q             = query(collectionGroup(db, 'picks'));
   const querySnapshot = await getDocs(q);
 
-  // 2) Zähle pro Nutzer
-  const counts = {};   // uid → Anzahl
+  // 2) Pro Nutzer ID die Anzahl zählen
+  const counts = {};
   querySnapshot.docs.forEach(docSnap => {
     const uid = docSnap.ref.parent.parent.id;
     counts[uid] = (counts[uid] || 0) + 1;
   });
 
-  // 3) Nutzernamen zu den UIDs holen
-  const names = {};    // uid → username
+  // 3) Für jede UID den echten Nutzernamen aus Firestore holen
+  const names = {};
   for (const uid of Object.keys(counts)) {
     const uDoc = await getDoc(doc(db, 'users', uid));
-    names[uid] = uDoc.exists() ? uDoc.data().username : uid;
+    names[uid] = uDoc.exists()
+      ? uDoc.data().username   // <–– hier holen wir "Eztof_1"
+      : uid;                   // Fallback auf UID
   }
 
-  // 4) Sortieren und in die Liste schreiben
-  const entries = Object.entries(counts)
-    .sort((a, b) => b[1] - a[1]);
-
+  // 4) Sortieren und in die UI schreiben
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   list.innerHTML = '';
   if (entries.length === 0) {
     list.innerHTML = '<li class="list-group-item">Noch keine Picks</li>';
@@ -109,62 +107,38 @@ async function loadScore() {
   }
 }
 
-// --- Karte (Leaflet + GeoJSON) ---
+// --- Karte (Leaflet & GeoJSON) bleibt unverändert ---
 let mapLoaded = false;
 async function loadMap() {
   if (mapLoaded) return;
   mapLoaded = true;
-
-  // Leaflet nachladen
   await Promise.all([
     loadScript('https://unpkg.com/leaflet@1.9.3/dist/leaflet.js'),
     loadCSS('https://unpkg.com/leaflet@1.9.3/dist/leaflet.css')
   ]);
+  const map = L.map('map').setView([51.33,10.45],6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'© OpenStreetMap' }).addTo(map);
 
-  const map = L.map('map').setView([51.33, 10.45], 6);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
-
-  // GeoJSON der Bundesländer
-  const geo = await fetch('/data/germany-states.geojson').then(r => r.json());
-
-  // Welche Bundesländer wurden gepickt?
-  const picksSnap = await getDocs(query(collectionGroup(db, 'picks')));
-  const usedCodes = new Set(picksSnap.docs.map(d => d.id));
+  const geo = await fetch('/data/germany-states.geojson').then(r=>r.json());
+  const picksSnap = await getDocs(query(collectionGroup(db,'picks')));
+  const usedCodes  = new Set(picksSnap.docs.map(d=>d.id));
   const statesUsed = new Set();
   for (const code of usedCodes) {
-    const p = await getDoc(doc(db, 'plates', code));
+    const p = await getDoc(doc(db,'plates',code));
     if (p.exists()) statesUsed.add(p.data().state);
   }
-
   L.geoJSON(geo, {
-    style: feature => ({
-      color: '#444',
-      weight: 1,
-      fillColor: statesUsed.has(feature.properties.NAME_1) ? '#58a' : '#ccc',
+    style: f => ({
+      color: '#444', weight:1,
+      fillColor: statesUsed.has(f.properties.NAME_1) ? '#58a' : '#ccc',
       fillOpacity: 0.7
     })
   }).addTo(map);
 }
+function loadScript(src){ return new Promise(r=>{const s=document.createElement('script');s.src=src;s.onload=r;document.head.append(s);}); }
+function loadCSS(href){ return new Promise(r=>{const l=document.createElement('link');l.rel='stylesheet';l.href=href;l.onload=r;document.head.append(l);}); }
 
-// Hilfsfunktionen für dynamisches Nachladen
-function loadScript(src) {
-  return new Promise(r => {
-    const s = document.createElement('script');
-    s.src = src; s.onload = r;
-    document.head.append(s);
-  });
-}
-function loadCSS(href) {
-  return new Promise(r => {
-    const l = document.createElement('link');
-    l.rel = 'stylesheet'; l.href = href; l.onload = r;
-    document.head.append(l);
-  });
-}
-
-// --- Upload DB ---
+// --- Upload DB bleibt gleich ---
 document.getElementById('btn-upload').onclick = async () => {
   const code  = document.getElementById('db-code').value.trim().toUpperCase();
   const city  = document.getElementById('db-city').value.trim();
@@ -176,7 +150,6 @@ document.getElementById('btn-upload').onclick = async () => {
     msg.className = 'text-danger';
     return;
   }
-
   try {
     await setDoc(doc(db, 'plates', code), { city, state });
     msg.textContent = `"${code}" wurde eingetragen.`;
