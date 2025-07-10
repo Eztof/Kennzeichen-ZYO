@@ -12,11 +12,22 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <!-- Navbar -->
+  <!-- Navbar mit Toggler für Mobile -->
   <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container-fluid">
       <a class="navbar-brand" href="#">Kennzeichen-ZYO</a>
-      <div class="collapse navbar-collapse">
+      <button
+        class="navbar-toggler"
+        type="button"
+        data-bs-toggle="collapse"
+        data-bs-target="#navbarNav"
+        aria-controls="navbarNav"
+        aria-expanded="false"
+        aria-label="Navigation umschalten"
+      >
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
         <ul class="navbar-nav me-auto">
           <li class="nav-item">
             <a class="nav-link" href="#" data-view="picken">Picken</a>
@@ -36,20 +47,19 @@
     </div>
   </nav>
 
-  <!-- Views -->
   <div class="container my-4">
     <!-- Picken -->
     <div id="view-picken" class="view">
       <h4>Picken</h4>
       <div class="input-group mb-3">
-        <input type="text" id="pick-input" class="form-control"
-               placeholder="Kennzeichen (z.B. B, M, ZYO)" />
+        <!-- Platzhalter entfernt -->
+        <input type="text" id="pick-input" class="form-control" />
         <button id="btn-pick" class="btn btn-success">Pick</button>
       </div>
       <div id="pick-msg"></div>
     </div>
 
-    <!-- Punktestand mit Summary & sortierter Tabelle -->
+    <!-- Punktestand -->
     <div id="view-punktestand" class="view d-none">
       <h4>Punktestand</h4>
       <div id="score-summary" class="mb-3"></div>
@@ -63,7 +73,7 @@
           </tr>
         </thead>
         <tbody id="score-table-body">
-          <tr><td colspan="4">Noch keine Daten geladen</td></tr>
+          <tr><td colspan="4">Noch keine Picks</td></tr>
         </tbody>
       </table>
     </div>
@@ -71,7 +81,7 @@
     <!-- Karte -->
     <div id="view-karte" class="view d-none">
       <h4>Deutschland-Karte</h4>
-      <div id="map" style="height: 500px;"></div>
+      <div id="map" style="height:500px;"></div>
     </div>
 
     <!-- Upload DB -->
@@ -79,13 +89,11 @@
       <h4>Upload DB</h4>
       <div class="mb-3">
         <label for="db-code" class="form-label">Kennzeichen</label>
-        <input type="text" id="db-code" class="form-control"
-               placeholder="z.B. B" />
+        <input type="text" id="db-code" class="form-control" placeholder="z.B. B" />
       </div>
       <div class="mb-3">
         <label for="db-city" class="form-label">Ort</label>
-        <input type="text" id="db-city" class="form-control"
-               placeholder="Berlin" />
+        <input type="text" id="db-city" class="form-control" placeholder="Berlin" />
       </div>
       <button id="btn-upload" class="btn btn-primary mb-3">Eintragen</button>
       <hr>
@@ -94,6 +102,8 @@
     </div>
   </div>
 
+  <!-- Bootstrap JS für Toggler -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script type="module" src="js/firebase-config.js"></script>
   <script type="module" src="js/game.js"></script>
 </body>
