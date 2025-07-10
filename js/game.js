@@ -6,8 +6,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/9.19.1/firebase-auth.js";
 import {
   doc, setDoc, getDoc,
-  collection, collectionGroup,
-  query, where, getDocs,
+  collectionGroup,
+  query, getDocs,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/9.19.1/firebase-firestore.js";
 
@@ -25,8 +25,11 @@ document.querySelectorAll('.nav-link').forEach(a => {
   a.onclick = e => {
     e.preventDefault();
     const v = a.dataset.view;
-    views.forEach(x => x.id === 'view-'+v ? x.classList.remove('d-none') : x.classList.add('d-none'));
-    // load on-demand
+    views.forEach(x =>
+      x.id === 'view-' + v
+        ? x.classList.remove('d-none')
+        : x.classList.add('d-none')
+    );
     if (v === 'punktestand') loadScore();
     if (v === 'karte')      loadMap();
   };
@@ -52,7 +55,7 @@ document.getElementById('btn-pick').onclick = async () => {
   setTimeout(() => {
     msg.textContent = '';
     inp.value = '';
-    inp.classList.remove('border-success','border-danger');
+    inp.classList.remove('border-success', 'border-danger');
   }, 1500);
 };
 
@@ -60,33 +63,46 @@ document.getElementById('btn-pick').onclick = async () => {
 async function loadScore() {
   const list = document.getElementById('score-list');
   list.innerHTML = 'Lade…';
-  // alle Pick-Dokumente
-  const q = query(collectionGroup(db, 'picks'));
-  const snaps = await getDocs(q);
-  const counts = {}; let names = {};
-  for (let docSnap of snaps) {
+
+  // 1) Alle Picks aus allen Users laden
+  const q    = query(collectionGroup(db, 'picks'));
+  const snap = await getDocs(q);  // QuerySnapshot
+
+  // 2) Zähle pro User
+  const counts   = {};  // uid → Anzahl
+  const usernames = {}; // uid → Nutzername
+
+  snap.docs.forEach(docSnap => {
     const uid = docSnap.ref.parent.parent.id;
-    counts[uid] = (counts[uid]||0) + 1;
-  }
-  // Nutzernamen holen
-  for (let uid of Object.keys(counts)) {
-    const uDoc = await getDoc(doc(db, 'users', uid));
-    names[uid] = uDoc.exists() ? uDoc.data().username : uid;
-  }
-  // sortiert ausgeben
-  const arr = Object.entries(counts)
-    .sort((a,b)=>b[1]-a[1]);
-  list.innerHTML = '';
-  arr.forEach(([uid, cnt]) => {
-    const li = document.createElement('li');
-    li.className = 'list-group-item d-flex justify-content-between';
-    li.textContent = names[uid];
-    const span = document.createElement('span');
-    span.textContent = cnt;
-    li.append(span);
-    list.append(li);
+    counts[uid] = (counts[uid] || 0) + 1;
   });
-  if (arr.length===0) list.innerHTML = '<li class="list-group-item">Noch keine Picks</li>';
+
+  // 3) Nutzernamen holen
+  for (const uid of Object.keys(counts)) {
+    const uDoc = await getDoc(doc(db, 'users', uid));
+    usernames[uid] = uDoc.exists()
+      ? uDoc.data().username
+      : uid;
+  }
+
+  // 4) Sortieren und in die Liste schreiben
+  const entries = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1]);
+
+  list.innerHTML = '';
+  if (entries.length === 0) {
+    list.innerHTML = '<li class="list-group-item">Noch keine Picks</li>';
+  } else {
+    for (const [uid, cnt] of entries) {
+      const li = document.createElement('li');
+      li.className = 'list-group-item d-flex justify-content-between';
+      li.textContent = usernames[uid];
+      const badge = document.createElement('span');
+      badge.textContent = cnt;
+      li.appendChild(badge);
+      list.appendChild(li);
+    }
+  }
 }
 
 // --- Karte (Leaflet + GeoJSON) ---
@@ -94,47 +110,56 @@ let mapLoaded = false;
 async function loadMap() {
   if (mapLoaded) return;
   mapLoaded = true;
-  // Leaflet CSS + JS nachladen
+
+  // Leaflet nachladen
   await Promise.all([
     loadScript('https://unpkg.com/leaflet@1.9.3/dist/leaflet.js'),
     loadCSS('https://unpkg.com/leaflet@1.9.3/dist/leaflet.css')
   ]);
+
   const map = L.map('map').setView([51.33, 10.45], 6);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution: '&copy; OSM' }).addTo(map);
+  L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { attribution: '&copy; OSM' }
+  ).addTo(map);
 
-  // GeoJSON der Bundesländer manuell hochladen in /data/germany-states.geojson
-  const geo = await fetch('/data/germany-states.geojson').then(r=>r.json());
+  // GeoJSON
+  const geo = await fetch('/data/germany-states.geojson').then(r => r.json());
 
-  // Welche Bundesländer wurden gepickt?
-  const picks = await getDocs(query(collectionGroup(db, 'picks')));
-  const usedCodes = new Set(picks.docs.map(d=>d.id));
+  // Welcher Bundesstaat wurde gepickt?
+  const picks      = await getDocs(query(collectionGroup(db, 'picks')));
+  const usedCodes  = new Set(picks.docs.map(d => d.id));
   const statesUsed = new Set();
-  for (let code of usedCodes) {
+
+  for (const code of usedCodes) {
     const p = await getDoc(doc(db, 'plates', code));
     if (p.exists()) statesUsed.add(p.data().state);
   }
 
   L.geoJSON(geo, {
     style: feature => ({
-      color: '#444', weight:1,
-      fillColor: statesUsed.has(feature.properties.NAME_1) ? '#58a' : '#ccc',
+      color: '#444',
+      weight: 1,
+      fillColor: statesUsed.has(feature.properties.NAME_1)
+        ? '#58a'
+        : '#ccc',
       fillOpacity: 0.7
     })
   }).addTo(map);
 }
 
-// Hilfsfunktionen für dynamisches Nachladen
+// --- Helpers zum Nachladen ---
 function loadScript(src) {
-  return new Promise(r=>{
-    const s=document.createElement('script');
-    s.src=src; s.onload=r;
+  return new Promise(resolve => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = resolve;
     document.head.append(s);
   });
 }
 function loadCSS(href) {
-  return new Promise(r=>{
-    const l=document.createElement('link');
-    l.rel='stylesheet'; l.href=href; l.onload=r;
+  return new Promise(resolve => {
+    const l = document.createElement('link');
+    l.rel = 'stylesheet'; l.href = href; l.onload = resolve;
     document.head.append(l);
   });
 }
@@ -145,17 +170,19 @@ document.getElementById('btn-upload').onclick = async () => {
   const city  = document.getElementById('db-city').value.trim();
   const state = document.getElementById('db-state').value;
   const msg   = document.getElementById('upload-msg');
-  if (!code||!city) {
+
+  if (!code || !city) {
     msg.textContent = 'Bitte alle Felder ausfüllen.';
     msg.className = 'text-danger';
     return;
   }
+
   try {
     await setDoc(doc(db, 'plates', code), { city, state });
     msg.textContent = `"${code}" wurde eingetragen.`;
     msg.className = 'text-success';
-    document.getElementById('db-code').value =
-      document.getElementById('db-city').value = '';
+    document.getElementById('db-code').value = '';
+    document.getElementById('db-city').value = '';
   } catch (e) {
     msg.textContent = e.message;
     msg.className = 'text-danger';
