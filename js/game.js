@@ -35,7 +35,7 @@ onAuthStateChanged(auth, async user => {
 document.getElementById('btn-logout').onclick = () =>
   signOut(auth).then(() => location.href = 'index.html');
 
-// --- Navigation zwischen Views ---
+// --- Navigation ---
 const views = document.querySelectorAll('.view');
 document.querySelectorAll('.nav-link').forEach(a => {
   a.onclick = e => {
@@ -92,7 +92,7 @@ async function loadScore() {
   summaryDiv.innerHTML = '';
   tableBody.innerHTML  = '<tr><td colspan="5">Lade…</td></tr>';
 
-  // 1) Picks sammeln
+  // Picks sammeln
   const pickSnap  = await getDocs(query(collectionGroup(db, 'picks')));
   const userPicks = {};
   pickSnap.docs.forEach(d => {
@@ -104,14 +104,14 @@ async function loadScore() {
     userPicks[uid].push({ code: d.id, date, attempts: at });
   });
 
-  // 2) Namen holen
+  // Namen holen
   const names = {};
   for (const uid of Object.keys(userPicks)) {
     const u = await getDoc(doc(db, 'users', uid));
     names[uid] = u.exists() ? u.data().username : uid;
   }
 
-  // 3) Summary
+  // Summary-Badges
   const badgeClasses = ['primary','success','info','warning','secondary'];
   Object.keys(userPicks).forEach((uid,i) => {
     const span = document.createElement('span');
@@ -120,21 +120,21 @@ async function loadScore() {
     summaryDiv.appendChild(span);
   });
 
-  // 4) Flat & sort
+  // Flatten & sort by date desc
   const flat = [];
   Object.entries(userPicks).forEach(([uid,arr]) =>
-    arr.forEach(p=> flat.push({ uid, ...p }))
+    arr.forEach(p => flat.push({ uid, ...p }))
   );
-  flat.sort((a,b)=> b.date - a.date);
+  flat.sort((a,b) => b.date - a.date);
 
-  // 5) City-Map
+  // cityMap holen
   const cityMap = {};
   const platesSnap = await getDocs(collection(db, 'plates'));
   platesSnap.docs.forEach(p => {
     cityMap[p.id] = p.data().city;
   });
 
-  // 6) Tabelle
+  // Tabelle füllen
   const rowClasses = ['table-primary','table-success','table-info','table-warning','table-secondary'];
   tableBody.innerHTML = '';
   flat.forEach(item => {
@@ -150,38 +150,34 @@ async function loadScore() {
     `;
     tableBody.appendChild(tr);
   });
-  if (flat.length===0) {
+  if (!flat.length) {
     tableBody.innerHTML = '<tr><td colspan="5">Noch keine Picks</td></tr>';
   }
 }
 
-// --- Karte mit Kreisen-GeoJSON ---
+// --- Leaflet-Karte mit Kreisen-GeoJSON ---
 let mapLoaded = false;
 async function loadMap() {
   if (mapLoaded) return;
   mapLoaded = true;
   console.log('Leaflet L:', typeof L);
 
-  // Karte initialisieren
   const map = L.map('map').setView([51.1657, 10.4515], 6);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap'
   }).addTo(map);
 
-  // GeoJSON laden
-  const geo = await fetch('data/counties.geojson').then(r => r.json());
-  console.log('GeoJSON Features:', geo.features.length);
+  const geo = await fetch('data/counties.geojson').then(r=>r.json());
+  console.log('Features:', geo.features.length);
 
-  // gepickte Städte
-  const picksSnap = await getDocs(query(collectionGroup(db, 'picks')));
+  const pickSnap = await getDocs(query(collectionGroup(db, 'picks')));
   const usedCities = new Set();
-  for (const d of picksSnap.docs) {
+  for (const d of pickSnap.docs) {
     const pd = await getDoc(doc(db, 'plates', d.id));
     if (pd.exists()) usedCities.add(pd.data().city);
   }
   console.log('usedCities:', usedCities);
 
-  // zeichnen
   L.geoJSON(geo, {
     style: f => ({
       color: '#444',
@@ -192,6 +188,6 @@ async function loadMap() {
   }).addTo(map);
 }
 
-// --- Upload & Import unverändert ---
+// --- Upload & Import bleiben wie gehabt ---
 document.getElementById('btn-upload').onclick = async () => { /* ... */ };
 btnImport.onclick = async () => { /* ... */ };
