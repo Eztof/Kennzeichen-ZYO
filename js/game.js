@@ -50,7 +50,7 @@ document.querySelectorAll('.nav-link').forEach(a => {
   };
 });
 
-// --- Picken ohne "Versuch gezählt"-Hinweis ---
+// --- Picken ---
 document.getElementById('btn-pick').onclick = async () => {
   const inp  = document.getElementById('pick-input');
   const msg  = document.getElementById('pick-msg');
@@ -62,7 +62,6 @@ document.getElementById('btn-pick').onclick = async () => {
   const snap = await getDoc(ref);
 
   if (snap.exists()) {
-    // Zähle Versuche im Hintergrund, aber zeige nur:
     msg.textContent = `"${code}" schon gepickt!`;
     inp.classList.add('border-danger');
     await updateDoc(ref, {
@@ -85,7 +84,7 @@ document.getElementById('btn-pick').onclick = async () => {
   }, 1500);
 };
 
-// --- Punktestand: sortiert nach Datum, "Erneut versucht" leer bei 0 ---
+// --- Punktestand: sortiert nach Datum, Ort statt Code, Datum ohne Zeit ---
 async function loadScore() {
   const summaryDiv = document.getElementById('score-summary');
   const tableBody  = document.getElementById('score-table-body');
@@ -94,7 +93,7 @@ async function loadScore() {
 
   // 1) Alle Picks aus allen Nutzern holen
   const pickSnap = await getDocs(query(collectionGroup(db, 'picks')));
-  const userPicks = {};
+  const userPicks = {}; // uid → Array von Picks
 
   pickSnap.docs.forEach(d => {
     const uid  = d.ref.parent.parent.id;
@@ -105,14 +104,14 @@ async function loadScore() {
     userPicks[uid].push({ code: d.id, date, attempts: at });
   });
 
-  // 2) Nutzernamen laden
+  // 2) Nutzernamen holen
   const names = {};
   for (const uid of Object.keys(userPicks)) {
     const u = await getDoc(doc(db, 'users', uid));
     names[uid] = u.exists() ? u.data().username : uid;
   }
 
-  // 3) Summary (nur Picks, kein Versuchszähler)
+  // 3) Zusammenfassung (nur Picks)
   const badgeClasses = ['primary','success','info','warning','secondary'];
   Object.keys(userPicks).forEach((uid, i) => {
     const span = document.createElement('span');
@@ -121,14 +120,23 @@ async function loadScore() {
     summaryDiv.appendChild(span);
   });
 
-  // 4) Alles in eine Liste packen & nach Datum (neueste oben) sortieren
+  // 4) Flachliste und sortieren (neueste zuerst)
   const flat = [];
   Object.entries(userPicks).forEach(([uid, arr]) => {
     arr.forEach(p => flat.push({ uid, ...p }));
   });
   flat.sort((a, b) => b.date - a.date);
 
-  // 5) Tabelle rendern
+  // 5) Stadt-Namen (city) laden für alle genutzten Codes
+  const cityMap = {};
+  for (const item of flat) {
+    if (!cityMap[item.code]) {
+      const pDoc = await getDoc(doc(db, 'plates', item.code));
+      cityMap[item.code] = pDoc.exists() ? pDoc.data().city : item.code;
+    }
+  }
+
+  // 6) Tabelle füllen
   const rowClasses = ['table-primary','table-success','table-info','table-warning','table-secondary'];
   tableBody.innerHTML = '';
   flat.forEach(item => {
@@ -137,8 +145,8 @@ async function loadScore() {
     tr.className = rowClasses[idx];
     tr.innerHTML = `
       <td>${names[item.uid]}</td>
-      <td>${item.code}</td>
-      <td>${item.date.toLocaleString()}</td>
+      <td>${cityMap[item.code]}</td>
+      <td>${item.date.toLocaleDateString()}</td>
       <td>${item.attempts > 0 ? item.attempts : ''}</td>
     `;
     tableBody.appendChild(tr);
@@ -149,14 +157,14 @@ async function loadScore() {
   }
 }
 
-// --- Karte (Leaflet & GeoJSON) bleibt unverändert ---
+// --- Karte (dein existierender Leaflet/GeoJSON-Code) ---
 let mapLoaded = false;
-async function loadMap() { /* dein bestehender Code */ }
+async function loadMap() { /* ... */ }
 
 // Hilfsfunktionen …
-function loadScript(src) { return new Promise(r => { const s = document.createElement('script'); s.src = src; s.onload = r; document.head.append(s); }); }
-function loadCSS(href)   { return new Promise(r => { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = href; l.onload = r; document.head.append(l); }); }
+function loadScript(src){ return new Promise(r=>{const s=document.createElement('script');s.src=src;s.onload=r;document.head.append(s);}); }
+function loadCSS(href){ return new Promise(r=>{const l=document.createElement('link');l.rel='stylesheet';l.href=href;l.onload=r;document.head.append(l);}); }
 
-// --- Upload & JSON-Import bleiben unverändert ---
+// --- Upload & Import (unverändert) ---
 document.getElementById('btn-upload').onclick = async () => { /* ... */ };
 btnImport.onclick = async () => { /* ... */ };
