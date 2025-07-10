@@ -19,7 +19,7 @@ const showRegLink  = document.getElementById('show-register');
 const showLogLink  = document.getElementById('show-login');
 const errDiv       = document.getElementById('auth-error');
 
-// Formular-Umschaltung
+// Umschalten Login ↔ Registrierung
 showRegLink.onclick = e => {
   e.preventDefault();
   loginForm.classList.add('d-none');
@@ -33,7 +33,7 @@ showLogLink.onclick = e => {
   errDiv.textContent = '';
 };
 
-// Persistenz einstellen (merkt Geräte)
+// Local Persistence, damit das Gerät sich merkt
 setPersistence(auth, browserLocalPersistence);
 
 // Registrierung
@@ -41,19 +41,23 @@ registerForm.addEventListener('submit', async e => {
   e.preventDefault();
   const username = document.getElementById('reg-username').value.trim();
   const password = document.getElementById('reg-password').value;
-  // Wir basteln uns eine Dummy-Email, da Firebase Auth Email/Password erwartet
+  // dummy-Email, weil Firebase Email/Passwort erwartet
   const email    = `${username}@kennzeichen-zyo.local`;
 
   try {
+    // 1) Account anlegen
     const cred = await createUserWithEmailAndPassword(auth, email, password);
 
-    // 1) Lege im Firestore das Profil mit echtem Nutzernamen an
-    await setDoc(doc(db, 'users', cred.user.uid), {
-      username: username,
-      created: serverTimestamp()
-    });
+    // 2) Firestore-Profil mit username anlegen!
+    await setDoc(
+      doc(db, 'users', cred.user.uid),
+      {
+        username: username,
+        created: serverTimestamp()
+      }
+    );
 
-    // 2) Direkt weiter zur Spielseite
+    // 3) Weiter zur Spiel-Seite
     window.location.href = 'game.html';
 
   } catch (err) {
@@ -75,7 +79,7 @@ loginForm.addEventListener('submit', async e => {
   }
 });
 
-// Wenn schon eingeloggt → direkt weiter
+// Wenn schon eingeloggt, sofort weiter
 onAuthStateChanged(auth, user => {
   if (user) {
     window.location.href = 'game.html';
