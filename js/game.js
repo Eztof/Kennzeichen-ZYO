@@ -12,6 +12,7 @@ import {
   collectionGroup,
   query,
   getDocs,
+  collection,
   serverTimestamp,
   increment
 } from 'https://www.gstatic.com/firebasejs/9.19.1/firebase-firestore.js';
@@ -64,7 +65,6 @@ document.getElementById('btn-pick').onclick = async () => {
   if (snap.exists()) {
     msg.textContent = `"${code}" schon gepickt!`;
     inp.classList.add('border-danger');
-    // Versuche heimlich mitzählen
     await updateDoc(ref, {
       attempts: increment(1),
       lastAttempt: serverTimestamp()
@@ -92,8 +92,8 @@ async function loadScore() {
   summaryDiv.innerHTML = '';
   tableBody.innerHTML  = '<tr><td colspan="5">Lade…</td></tr>';
 
-  // 1) alle Picks abrufen
-  const pickSnap = await getDocs(query(collectionGroup(db, 'picks')));
+  // 1) Alle Picks abrufen
+  const pickSnap  = await getDocs(query(collectionGroup(db, 'picks')));
   const userPicks = {};
 
   pickSnap.docs.forEach(d => {
@@ -121,21 +121,19 @@ async function loadScore() {
     summaryDiv.appendChild(span);
   });
 
-  // 4) Flachliste & nach Datum sortieren (neueste oben)
+  // 4) FlatList & sortieren (neueste zuerst)
   const flat = [];
-  Object.entries(userPicks).forEach(([uid, arr]) =>
-    arr.forEach(p => flat.push({ uid, ...p }))
-  );
-  flat.sort((a,b) => b.date - a.date);
+  Object.entries(userPicks).forEach(([uid,arr])=>{
+    arr.forEach(p=> flat.push({ uid, ...p }));
+  });
+  flat.sort((a,b)=> b.date - a.date);
 
-  // 5) Stadt-Namen für Kennzeichen laden
+  // 5) City-Mapping aus plates
   const cityMap = {};
-  for (const item of flat) {
-    if (!cityMap[item.code]) {
-      const pDoc = await getDoc(doc(db, 'plates', item.code));
-      cityMap[item.code] = pDoc.exists() ? pDoc.data().city : item.code;
-    }
-  }
+  const platesSnap = await getDocs(collection(db, 'plates'));
+  platesSnap.docs.forEach(p => {
+    cityMap[p.id] = p.data().city;
+  });
 
   // 6) Tabelle füllen
   const rowClasses = ['table-primary','table-success','table-info','table-warning','table-secondary'];
@@ -147,62 +145,53 @@ async function loadScore() {
     tr.innerHTML = `
       <td>${names[item.uid]}</td>
       <td>${item.code}</td>
-      <td>${cityMap[item.code]}</td>
+      <td>${cityMap[item.code]||''}</td>
       <td>${item.date.toLocaleDateString()}</td>
-      <td>${item.attempts > 0 ? item.attempts : ''}</td>
+      <td>${item.attempts>0?item.attempts:''}</td>
     `;
     tableBody.appendChild(tr);
   });
-
-  if (flat.length === 0) {
+  if (flat.length===0) {
     tableBody.innerHTML = '<tr><td colspan="5">Noch keine Picks</td></tr>';
   }
 }
 
-// --- Karte mit Leaflet + GeoJSON ---
+// --- Karte mit Kreisen-GeoJSON ---
 let mapLoaded = false;
 async function loadMap() {
   if (mapLoaded) return;
   mapLoaded = true;
 
-  // Karte zentriert auf Deutschland
+  // Leaflet‐Karte
   const map = L.map('map').setView([51.1657, 10.4515], 6);
-
-  // OSM-Tiles
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap'
   }).addTo(map);
 
-  // GeoJSON der Bundesländer
-  const geojson = await fetch('data/germany-states.geojson').then(r => r.json());
+  // Kreise‐GeoJSON laden (deine Datei)
+  const geojson = await fetch('data/counties.geojson').then(r=>r.json());
 
-  // Welche Bundesländer wurden gepickt?
+  // Welche Kreise wurden gepickt?
   const picksSnap = await getDocs(query(collectionGroup(db, 'picks')));
-  const used = new Set();
+  const usedCities = new Set();
   for (const d of picksSnap.docs) {
     const code = d.id;
-    const pDoc = await getDoc(doc(db, 'plates', code));
-    if (pDoc.exists()) used.add(pDoc.data().state);
+    const pd   = await getDoc(doc(db, 'plates', code));
+    if (pd.exists()) usedCities.add(pd.data().city);
   }
 
-  // Einfärben
+  // Style: einfärben, wenn city im Set
   L.geoJSON(geojson, {
     style: f => {
-      const name = f.properties.NAME_1;
+      // NAME_3 ist Kreis‐Name
+      const name = f.properties.NAME_3;
+      const fill = usedCities.has(name);
       return {
         color: '#444',
         weight: 1,
-        fillColor: used.has(name) ? '#32a852' : '#ddd',
-        fillOpacity: used.has(name) ? 0.7 : 0.3
+        fillColor: fill ? '#32a852' : '#ddd',
+        fillOpacity: fill ? 0.7 : 0.3
       };
     }
   }).addTo(map);
 }
-
-// Hilfsfunktionen (falls benötigt)
-function loadScript(src){ return new Promise(r=>{const s=document.createElement('script');s.src=src;s.onload=r;document.head.append(s);}); }
-function loadCSS(href){ return new Promise(r=>{const l=document.createElement('link');l.rel='stylesheet';l.href=href;l.onload=r;document.head.append(l);}); }
-
-// --- Upload- und Import-Handler bleiben unverändert ---
-document.getElementById('btn-upload').onclick = async () => { /* ... */ };
-btnImport.onclick = async () => { /* ... */ };
