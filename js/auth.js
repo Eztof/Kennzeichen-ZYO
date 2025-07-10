@@ -4,8 +4,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   setPersistence,
-  browserLocalPersistence,
-  onAuthStateChanged
+  browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/9.19.1/firebase-auth.js";
 import {
   doc,
@@ -19,7 +18,7 @@ const showRegLink  = document.getElementById('show-register');
 const showLogLink  = document.getElementById('show-login');
 const errDiv       = document.getElementById('auth-error');
 
-// Umschalten Login ↔ Registrierung
+// 1) Formular-Umschaltung Login ↔ Registrierung
 showRegLink.onclick = e => {
   e.preventDefault();
   loginForm.classList.add('d-none');
@@ -33,22 +32,21 @@ showLogLink.onclick = e => {
   errDiv.textContent = '';
 };
 
-// Local Persistence, damit das Gerät sich merkt
+// 2) Local Persistence, damit das Gerät eingeloggt bleibt
 setPersistence(auth, browserLocalPersistence);
 
-// Registrierung
+// 3) Registrierung
 registerForm.addEventListener('submit', async e => {
   e.preventDefault();
   const username = document.getElementById('reg-username').value.trim();
   const password = document.getElementById('reg-password').value;
-  // dummy-Email, weil Firebase Email/Passwort erwartet
-  const email    = `${username}@kennzeichen-zyo.local`;
+  const email    = `${username}@kennzeichen-zyo.local`; // Dummy-Email
 
   try {
-    // 1) Account anlegen
+    // a) User anlegen und einloggen
     const cred = await createUserWithEmailAndPassword(auth, email, password);
 
-    // 2) Firestore-Profil mit username anlegen!
+    // b) Firestore-Profil mit echtem Nutzernamen
     await setDoc(
       doc(db, 'users', cred.user.uid),
       {
@@ -57,7 +55,7 @@ registerForm.addEventListener('submit', async e => {
       }
     );
 
-    // 3) Weiter zur Spiel-Seite
+    // c) erst danach zur Spielseite
     window.location.href = 'game.html';
 
   } catch (err) {
@@ -65,23 +63,17 @@ registerForm.addEventListener('submit', async e => {
   }
 });
 
-// Login
+// 4) Login
 loginForm.addEventListener('submit', async e => {
   e.preventDefault();
   const username = document.getElementById('login-username').value.trim();
   const password = document.getElementById('login-password').value;
   const email    = `${username}@kennzeichen-zyo.local`;
+
   try {
     await signInWithEmailAndPassword(auth, email, password);
     window.location.href = 'game.html';
   } catch (err) {
     errDiv.textContent = err.message;
-  }
-});
-
-// Wenn schon eingeloggt, sofort weiter
-onAuthStateChanged(auth, user => {
-  if (user) {
-    window.location.href = 'game.html';
   }
 });
