@@ -1,3 +1,4 @@
+<!-- game.html -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -17,11 +18,19 @@
       <a class="navbar-brand" href="#">Kennzeichen-ZYO</a>
       <div class="collapse navbar-collapse">
         <ul class="navbar-nav me-auto">
-          <li class="nav-item"><a class="nav-link" href="#" data-view="picken">Picken</a></li>
-          <li class="nav-item"><a class="nav-link" href="#" data-view="punktestand">Punktestand</a></li>
-          <li class="nav-item"><a class="nav-link" href="#" data-view="karte">Karte</a></li>
-          <!-- Upload-DB-Link: wird per JS nur für Eztof_1 sichtbar -->
-          <li class="nav-item"><a class="nav-link d-none" href="#" data-view="upload" id="nav-upload">Upload DB</a></li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-view="picken">Picken</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-view="punktestand">Punktestand</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-view="karte">Karte</a>
+          </li>
+          <!-- Upload nur für Eztof_1 (d-none versteckt) -->
+          <li class="nav-item d-none" id="nav-upload">
+            <a class="nav-link" href="#" data-view="upload">Upload DB</a>
+          </li>
         </ul>
         <button id="btn-logout" class="btn btn-outline-light">Logout</button>
       </div>
@@ -52,7 +61,7 @@
       <div id="map" style="height: 500px;"></div>
     </div>
 
-    <!-- Upload DB (standardmäßig versteckt) -->
+    <!-- Upload DB -->
     <div id="view-upload" class="view d-none">
       <h4>Upload DB</h4>
 
@@ -75,7 +84,7 @@
     </div>
   </div>
 
-  <!-- Firebase + Game-Logik -->
+  <!-- Scripts -->
   <script type="module" src="js/firebase-config.js"></script>
   <script type="module" src="js/game.js"></script>
 </body>
