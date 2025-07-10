@@ -7,7 +7,11 @@ import {
   browserLocalPersistence,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/9.19.1/firebase-auth.js";
-import { doc, setDoc } from "https://www.gstatic.com/firebasejs/9.19.1/firebase-firestore.js";
+import {
+  doc,
+  setDoc,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/9.19.1/firebase-firestore.js";
 
 const loginForm    = document.getElementById('login-form');
 const registerForm = document.getElementById('register-form');
@@ -37,16 +41,21 @@ registerForm.addEventListener('submit', async e => {
   e.preventDefault();
   const username = document.getElementById('reg-username').value.trim();
   const password = document.getElementById('reg-password').value;
+  // Wir basteln uns eine Dummy-Email, da Firebase Auth Email/Password erwartet
   const email    = `${username}@kennzeichen-zyo.local`;
+
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
-    // Nutzerprofil in Firestore
+
+    // 1) Lege im Firestore das Profil mit echtem Nutzernamen an
     await setDoc(doc(db, 'users', cred.user.uid), {
       username: username,
-      created: new Date()
+      created: serverTimestamp()
     });
-    // weiterleiten
+
+    // 2) Direkt weiter zur Spielseite
     window.location.href = 'game.html';
+
   } catch (err) {
     errDiv.textContent = err.message;
   }
