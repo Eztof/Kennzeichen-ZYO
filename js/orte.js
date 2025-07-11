@@ -16,57 +16,54 @@ import {
 } from 'https://www.gstatic.com/firebasejs/9.19.1/firebase-firestore.js';
 
 let currentUserUid, map, markersLayer, editId = null, detailId = null;
-
-// DOM
-const navLinks     = document.querySelectorAll('.nav-link');
-const views        = document.querySelectorAll('.view');
-const btnLogout    = document.getElementById('btn-logout');
-const versionEl    = document.getElementById('app-version');
-const placesList   = document.getElementById('placesList');
-const btnAdd       = document.getElementById('btn-add');
-
-const modalPlace      = new bootstrap.Modal(document.getElementById('modal-place'));
-const formPlace       = document.getElementById('form-place');
-const titleEl         = document.getElementById('place-modal-title');
-const inputPlace      = document.getElementById('input-place');
-const inputDesc       = document.getElementById('input-desc');
-const inputDate       = document.getElementById('input-date');
-const inputLat        = document.getElementById('input-lat');
-const inputLng        = document.getElementById('input-lng');
-
-const modalDetail       = new bootstrap.Modal(document.getElementById('modal-place-detail'));
-const detailTitleEl     = document.getElementById('detail-place-title');
-const detailDescEl      = document.getElementById('detail-place-desc');
-const detailDateEl      = document.getElementById('detail-place-date');
-const detailCoordsEl    = document.getElementById('detail-place-coords');
-const btnDelete         = document.getElementById('btn-delete');
-const btnEdit           = document.getElementById('btn-edit');
-
 let itemsCache = [];
 
-// NAVIGATION
+const navLinks    = document.querySelectorAll('.nav-link');
+const views       = document.querySelectorAll('.view');
+const btnLogout   = document.getElementById('btn-logout');
+const versionEl   = document.getElementById('app-version');
+const placesList  = document.getElementById('placesList');
+const btnAdd      = document.getElementById('btn-add');
+
+const modalPlace       = new bootstrap.Modal(document.getElementById('modal-place'));
+const formPlace        = document.getElementById('form-place');
+const placeModalTitle  = document.getElementById('place-modal-title');
+const inputPlace       = document.getElementById('input-place');
+const inputDesc        = document.getElementById('input-desc');
+const inputDate        = document.getElementById('input-date');
+const geocodeLoading   = document.getElementById('geocode-loading');
+
+const modalDetail      = new bootstrap.Modal(document.getElementById('modal-place-detail'));
+const detailTitleEl    = document.getElementById('detail-place-title');
+const detailDescEl     = document.getElementById('detail-place-desc');
+const detailDateEl     = document.getElementById('detail-place-date');
+const btnDelete        = document.getElementById('btn-delete');
+const btnEdit          = document.getElementById('btn-edit');
+
+// NAVIGATION TABS
 navLinks.forEach(a => {
   a.onclick = e => {
     e.preventDefault();
     const view = a.dataset.view;
-    views.forEach(v => v.id === 'view-'+view 
-      ? v.classList.remove('d-none') : v.classList.add('d-none'));
+    views.forEach(v => v.id === 'view-'+view
+      ? v.classList.remove('d-none')
+      : v.classList.add('d-none'));
     navLinks.forEach(n=>n.classList.toggle('active', n===a));
-    if (view === 'map' && !map) initMap();
-    if (view === 'map') updateMarkers();
+    if (view==='map' && !map) initMap();
+    if (view==='map') updateMarkers();
   };
 });
 
-// AUTH & LOAD
+// AUTH & DATA LOADING
 onAuthStateChanged(auth, async user => {
   if (!user) return location.href='index.html';
   currentUserUid = user.uid;
 
   // Version
   const info = await getDoc(doc(db,'infos','webapp'));
-  versionEl.textContent = info.exists()? info.data().version : '–';
+  versionEl.textContent = info.exists() ? info.data().version : '–';
 
-  // Realtime Listener
+  // Firestore-Listener
   onSnapshot(collection(db,'orte'), snap => {
     itemsCache = snap.docs.map(d=>({ id:d.id, ...d.data() }));
     renderList();
@@ -74,7 +71,7 @@ onAuthStateChanged(auth, async user => {
   });
 });
 
-// INIT MAP
+// INITIALIZE LEAFLET MAP
 function initMap(){
   map = L.map('map').setView([51.1657,10.4515],6);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
@@ -91,39 +88,37 @@ function renderList(){
       const li = document.createElement('li');
       li.className='list-group-item list-group-item-action';
       li.textContent=item.name;
-      li.onclick=()=>showDetail(item.id);
+      li.onclick=()=> showDetail(item.id);
       placesList.append(li);
     });
 }
 
-// UPDATE MARKERS
+// UPDATE MARKERS ON MAP
 function updateMarkers(){
   markersLayer.clearLayers();
   itemsCache.forEach(item=>{
     if (item.lat!=null && item.lng!=null){
-      const marker = L.marker([item.lat,item.lng])
-        .bindPopup(`<strong>${item.name}</strong>`);
-      markersLayer.addLayer(marker);
+      L.marker([item.lat,item.lng])
+        .bindPopup(`<strong>${item.name}</strong>`)
+        .addTo(markersLayer);
     }
   });
 }
 
-// SHOW DETAIL
+// SHOW DETAIL MODAL
 async function showDetail(id){
   detailId = id;
   const snap = await getDoc(doc(db,'orte',id));
   const d = snap.data();
   detailTitleEl.textContent = d.name;
-  detailDescEl.textContent  = d.description||'';
+  detailDescEl.textContent  = d.description || '';
   if (d.date){
-    const dd = d.date.toDate? d.date.toDate():new Date(d.date);
-    detailDateEl.textContent = dd.toLocaleDateString();
+    const dt = d.date.toDate ? d.date.toDate() : new Date(d.date);
+    detailDateEl.textContent = dt.toLocaleDateString();
     detailDateEl.parentElement.classList.remove('d-none');
-  } else detailDateEl.parentElement.classList.add('d-none');
-  if (d.lat!=null && d.lng!=null){
-    detailCoordsEl.textContent = `Lat: ${d.lat}, Lng: ${d.lng}`;
-    detailCoordsEl.parentElement.classList.remove('d-none');
-  } else detailCoordsEl.parentElement.classList.add('d-none');
+  } else {
+    detailDateEl.parentElement.classList.add('d-none');
+  }
   modalDetail.show();
 }
 
@@ -138,35 +133,54 @@ btnEdit.onclick = async ()=>{
   const snap = await getDoc(doc(db,'orte',detailId));
   const d = snap.data();
   editId = detailId;
-  titleEl.textContent = 'Ort bearbeiten';
-  inputPlace.value = d.name;
-  inputDesc.value  = d.description||'';
-  inputDate.value  = d.date
-    ? (d.date.toDate?d.date.toDate():new Date(d.date))
-      .toISOString().slice(0,10) : '';
-  inputLat.value   = d.lat!=null? d.lat : '';
-  inputLng.value   = d.lng!=null? d.lng : '';
+  placeModalTitle.textContent='Ort bearbeiten';
+  inputPlace.value=d.name;
+  inputDesc.value=d.description||'';
+  inputDate.value=d.date
+    ? (d.date.toDate?d.date.toDate():new Date(d.date)).toISOString().slice(0,10)
+    : '';
   inputPlace.classList.remove('is-invalid');
   modalDetail.hide();
   modalPlace.show();
 };
 
-// ADD NEW
+// "+" → Create-Modal
 btnAdd.onclick=()=>{
   editId=null;
-  titleEl.textContent='Ort hinzufügen';
+  placeModalTitle.textContent='Ort hinzufügen';
   formPlace.reset();
   inputPlace.classList.remove('is-invalid');
   modalPlace.show();
 };
 
-// SAVE/Create
+// GEOCODING via Nominatim
+async function geocode(name){
+  geocodeLoading.classList.remove('d-none');
+  try {
+    const res = await fetch(
+      'https://nominatim.openstreetmap.org/search?format=json&q='
+      + encodeURIComponent(name)
+      + '&limit=1'
+    );
+    const data = await res.json();
+    if (data && data.length){
+      return {
+        lat: parseFloat(data[0].lat),
+        lng: parseFloat(data[0].lon)
+      };
+    }
+  } catch{}
+  return {lat:null, lng:null};
+}  
+
+// SAVE (Create/Edit)
 formPlace.addEventListener('submit', async e=>{
   e.preventDefault();
   const name = inputPlace.value.trim();
   if(!name) return;
   const exists = itemsCache.some(it=>
-    it.name.toLowerCase()===name.toLowerCase() && it.id!==editId
+    it.name.toLowerCase()===name.toLowerCase()
+    && it.id!==editId
   );
   if(exists){
     inputPlace.classList.add('is-invalid');
@@ -178,20 +192,19 @@ formPlace.addEventListener('submit', async e=>{
   const dateVal = inputDate.value
     ? Timestamp.fromDate(new Date(inputDate.value))
     : null;
-  const latVal  = parseFloat(inputLat.value);
-  const lngVal  = parseFloat(inputLng.value);
 
-  const data = {
-    name, description: descVal, date: dateVal,
-    lat: isFinite(latVal)? latVal : null,
-    lng: isFinite(lngVal)? lngVal : null
-  };
+  // Geocode nach Name
+  const {lat,lng} = await geocode(name);
+  geocodeLoading.classList.add('d-none');
+
+  const payload = { name, description: descVal, date: dateVal, lat, lng };
 
   if(editId){
-    await updateDoc(doc(db,'orte',editId), data);
+    await updateDoc(doc(db,'orte',editId), payload);
   } else {
     await addDoc(collection(db,'orte'), {
-      ...data, createdBy: currentUserUid,
+      ...payload,
+      createdBy: currentUserUid,
       createdAt: serverTimestamp()
     });
   }
@@ -199,4 +212,4 @@ formPlace.addEventListener('submit', async e=>{
 });
 
 // LOGOUT
-btnLogout.onclick = ()=>signOut(auth).then(()=>location.href='index.html');
+btnLogout.onclick = ()=> signOut(auth).then(()=>location.href='index.html');
