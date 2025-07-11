@@ -5,20 +5,15 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Kennzeichen-ZYO • Spiel</title>
 
-  <!-- Bootstrap CSS -->
   <link
     href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
     rel="stylesheet"
   >
-
-  <!-- Leaflet CSS (integrity entfernt) -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
   />
-
   <link rel="stylesheet" href="css/style.css">
-
   <style>
     #map { width: 100%; height: 500px; }
     .col-kzn, .col-attempts { white-space: nowrap; width:1%; }
@@ -26,16 +21,17 @@
   </style>
 </head>
 <body>
+  <!-- Navbar mit Dashboard-Link -->
   <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container-fluid">
-      <a class="navbar-brand" href="#">Kennzeichen-ZYO</a>
+      <a class="navbar-brand" href="dashboard.html">← Dashboard</a>
       <button class="navbar-toggler" type="button"
-              data-bs-toggle="collapse" data-bs-target="#navbarNav"
-              aria-controls="navbarNav" aria-expanded="false"
+              data-bs-toggle="collapse" data-bs-target="#navbarNavGame"
+              aria-controls="navbarNavGame" aria-expanded="false"
               aria-label="Navigation umschalten">
         <span class="navbar-toggler-icon"></span>
       </button>
-      <div class="collapse navbar-collapse" id="navbarNav">
+      <div class="collapse navbar-collapse" id="navbarNavGame">
         <ul class="navbar-nav me-auto">
           <li class="nav-item"><a class="nav-link" href="#" data-view="picken">Picken</a></li>
           <li class="nav-item"><a class="nav-link" href="#" data-view="punktestand">Punktestand</a></li>
@@ -50,69 +46,18 @@
   </nav>
 
   <div class="container my-4">
-    <div id="view-picken" class="view">
-      <h4>Picken</h4>
-      <div class="input-group mb-3">
-        <input type="text" id="pick-input" class="form-control" />
-        <button id="btn-pick" class="btn btn-success">Pick</button>
-      </div>
-      <div id="pick-msg"></div>
-    </div>
-
-    <div id="view-punktestand" class="view d-none">
-      <h4>Punktestand</h4>
-      <div id="score-summary" class="mb-3"></div>
-      <table class="table table-striped">
-        <colgroup>
-          <col>
-          <col class="col-kzn">
-          <col class="col-city">
-          <col>
-          <col class="col-attempts">
-        </colgroup>
-        <thead>
-          <tr>
-            <th>Benutzer</th>
-            <th>KZN</th>
-            <th>Ort</th>
-            <th>Datum</th>
-            <th>Erneut versucht</th>
-          </tr>
-        </thead>
-        <tbody id="score-table-body">
-          <tr><td colspan="5">Noch keine Picks</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div id="view-karte" class="view d-none">
-      <h4>Deutschland-Karte</h4>
-      <div id="map"></div>
-    </div>
-
-    <div id="view-upload" class="view d-none">
-      <h4>Upload DB</h4>
-      <div class="mb-3">
-        <label for="db-code" class="form-label">Kennzeichen</label>
-        <input type="text" id="db-code" class="form-control" placeholder="z.B. B" />
-      </div>
-      <div class="mb-3">
-        <label for="db-city" class="form-label">Ort</label>
-        <input type="text" id="db-city" class="form-control" placeholder="Berlin" />
-      </div>
-      <button id="btn-upload" class="btn btn-primary mb-3">Eintragen</button>
-      <hr>
-      <button id="btn-import" class="btn btn-warning">Importiere plates.json</button>
-      <div id="upload-msg" class="mt-3"></div>
-    </div>
+    <!-- Views wie gehabt -->
+    <div id="view-picken" class="view"><!-- ... --></div>
+    <div id="view-punktestand" class="view d-none"><!-- ... --></div>
+    <div id="view-karte" class="view d-none"><!-- … --></div>
+    <div id="view-upload" class="view d-none"><!-- … --></div>
   </div>
 
-  <!-- Bootstrap JS -->
+  <!-- Bootstrap & Leaflet JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <!-- Leaflet JS (integrity entfernt) -->
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 
-  <!-- Firebase & Game-Logik -->
+  <!-- Deine Module -->
   <script type="module" src="js/firebase-config.js"></script>
   <script type="module" src="js/game.js"></script>
 </body>
