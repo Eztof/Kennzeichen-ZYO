@@ -1,18 +1,17 @@
-// js/auth.js (Debug-Version)
+// js/auth.js
 import { auth, db } from './firebase-config.js';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   setPersistence,
-  browserLocalPersistence
-} from "https://www.gstatic.com/firebasejs/9.19.1/firebase-auth.js";
+  browserLocalPersistence,
+  onAuthStateChanged
+} from 'https://www.gstatic.com/firebasejs/9.19.1/firebase-auth.js';
 import {
   doc,
   setDoc,
   serverTimestamp
-} from "https://www.gstatic.com/firebasejs/9.19.1/firebase-firestore.js";
-
-console.log('🔥 auth.js geladen');
+} from 'https://www.gstatic.com/firebasejs/9.19.1/firebase-firestore.js';
 
 const loginForm    = document.getElementById('login-form');
 const registerForm = document.getElementById('register-form');
@@ -20,7 +19,7 @@ const showRegLink  = document.getElementById('show-register');
 const showLogLink  = document.getElementById('show-login');
 const errDiv       = document.getElementById('auth-error');
 
-// Umschalten Login ↔ Registrierung
+// Form-Toggle
 showRegLink.onclick = e => {
   e.preventDefault();
   loginForm.classList.add('d-none');
@@ -35,9 +34,14 @@ showLogLink.onclick = e => {
 };
 
 // Local Persistence
-setPersistence(auth, browserLocalPersistence)
-  .then(() => console.log('🔒 Persistence gesetzt'))
-  .catch(e => console.error('Persistence-Fehler', e));
+setPersistence(auth, browserLocalPersistence);
+
+// Already logged in → Dashboard
+onAuthStateChanged(auth, user => {
+  if (user) {
+    window.location.href = 'dashboard.html';
+  }
+});
 
 // Registrierung
 registerForm.addEventListener('submit', async e => {
@@ -46,24 +50,14 @@ registerForm.addEventListener('submit', async e => {
   const password = document.getElementById('reg-password').value;
   const email    = `${username}@kennzeichen-zyo.local`;
 
-  console.log('📝 Registrierung angefragt für:', username, email);
-
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
-    console.log('✅ Firebase Auth User erstellt, UID =', cred.user.uid);
-
-    // Firestore-Profil anlegen
-    const userRef = doc(db, 'users', cred.user.uid);
-    console.log('⏳ setDoc wird gerufen auf', userRef.path);
-    await setDoc(userRef, {
-      username: username,
+    await setDoc(doc(db, 'users', cred.user.uid), {
+      username,
       created: serverTimestamp()
     });
-    console.log('✅ Firestore-Dokument users/' + cred.user.uid + ' angelegt');
-
-    window.location.href = 'game.html';
+    window.location.href = 'dashboard.html';
   } catch (err) {
-    console.error('❌ Registrierung fehlgeschlagen:', err);
     errDiv.textContent = err.message;
   }
 });
@@ -75,14 +69,10 @@ loginForm.addEventListener('submit', async e => {
   const password = document.getElementById('login-password').value;
   const email    = `${username}@kennzeichen-zyo.local`;
 
-  console.log('🔑 Login angefragt für:', username, email);
-
   try {
     await signInWithEmailAndPassword(auth, email, password);
-    console.log('✅ Login erfolgreich');
-    window.location.href = 'game.html';
+    window.location.href = 'dashboard.html';
   } catch (err) {
-    console.error('❌ Login-Fehler:', err);
     errDiv.textContent = err.message;
   }
 });
