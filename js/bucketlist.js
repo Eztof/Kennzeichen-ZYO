@@ -18,14 +18,11 @@ import {
 } from 'https://www.gstatic.com/firebasejs/9.19.1/firebase-firestore.js';
 
 let currentUserUid;
-let users = [];           // hier speichern wir uid ↔ username
+let users = [];           // uid ↔ username
 let itemsCache = [];
-let settings = {
-  bucketShowRemaining: false,
-  bucketTimeFormat: 'days'
-};
-let editId    = null;
-let detailId  = null;
+let settings = { bucketShowRemaining: false, bucketTimeFormat: 'days' };
+let editId   = null;
+let detailId = null;
 
 // DOM-Elemente
 const entriesList     = document.getElementById('entriesList');
@@ -33,26 +30,26 @@ const btnAdd          = document.getElementById('btn-add');
 const btnLogout       = document.getElementById('btn-logout');
 const versionEl       = document.getElementById('app-version');
 
-const modalCreateEl   = document.getElementById('modal-create');
-const createModalTitle= document.getElementById('create-modal-title');
-const formCreate      = document.getElementById('form-create');
-const inputTitle      = document.getElementById('input-title');
-const inputDesc       = document.getElementById('input-desc');
-const inputDue        = document.getElementById('input-due');
-const participantsDiv = document.getElementById('create-participants');
+const modalCreateEl    = document.getElementById('modal-create');
+const createModalTitle = document.getElementById('create-modal-title');
+const formCreate       = document.getElementById('form-create');
+const inputTitle       = document.getElementById('input-title');
+const inputDesc        = document.getElementById('input-desc');
+const inputDue         = document.getElementById('input-due');
+const participantsDiv  = document.getElementById('create-participants');
 
-const modalDetailEl   = document.getElementById('modal-detail');
-const detailTitle     = document.getElementById('detail-title');
-const detailDesc      = document.getElementById('detail-desc');
-const detailDue       = document.getElementById('detail-due');
-const detailParts     = document.getElementById('detail-participants');
-const btnDelete       = document.getElementById('btn-delete');
-const btnEdit         = document.getElementById('btn-edit');
+const modalDetailEl    = document.getElementById('modal-detail');
+const detailTitle      = document.getElementById('detail-title');
+const detailDesc       = document.getElementById('detail-desc');
+const detailDue        = document.getElementById('detail-due');
+const detailParts      = document.getElementById('detail-participants');
+const btnDelete        = document.getElementById('btn-delete');
+const btnEdit          = document.getElementById('btn-edit');
 
 const createModal = new bootstrap.Modal(modalCreateEl);
 const detailModal = new bootstrap.Modal(modalDetailEl);
 
-// Teilnehmer-Checkboxen für Create/​Edit
+// Teilnehmer-Checkboxen für Create/Edit
 function populateCreateParticipants(selected = []) {
   participantsDiv.innerHTML = '';
   users.forEach(u => {
@@ -101,7 +98,7 @@ onAuthStateChanged(auth, async user => {
     username: d.data().username
   }));
 
-  // 2) Eigene Bucket-List–Settings laden
+  // 2) Eigene Bucket-List-Settings laden
   const meSnap = await getDoc(doc(db, 'users', currentUserUid));
   if (meSnap.exists()) {
     const d = meSnap.data();
@@ -118,7 +115,7 @@ onAuthStateChanged(auth, async user => {
   // 4) Realtime-Listener für Bucketlist
   onSnapshot(collection(db, 'bucketlist'), snap => {
     itemsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderList(itemsCache);
+    renderList();
   });
 });
 
@@ -127,26 +124,37 @@ btnLogout.onclick = () =>
   signOut(auth).then(() => location.href = 'index.html');
 
 // Liste rendern, sortiert nach dueDate
-function renderList(items) {
+function renderList() {
   entriesList.innerHTML = '';
-  items
+  itemsCache
     .sort((a,b) => {
       const da = a.dueDate ? (a.dueDate.toDate ? a.dueDate.toDate() : new Date(a.dueDate)) : Infinity;
       const db = b.dueDate ? (b.dueDate.toDate ? b.dueDate.toDate() : new Date(b.dueDate)) : Infinity;
       return da - db;
     })
     .forEach(item => {
-      const { id, title, dueDate, participants, statuses } = item;
-      const allChecked = participants.length>0
-        && participants.every(u=>statuses?.[u]);
+      const { id, title, dueDate, participants = [], statuses = {} } = item;
+      const allChecked = participants.length > 0
+        && participants.every(u => statuses[u]);
 
       const div = document.createElement('div');
-      div.className = 'list-group-item d-flex align-items-center '
-                     + (allChecked?'list-group-item-success':'');
+      div.className = 'list-group-item d-flex align-items-center'
+                     + (allChecked ? ' list-group-item-success' : '');
       div.dataset.id = id;
 
-      // Auf Klick reagieren
-      div.addEventListener('click', e => onEntryClick(e, id));
+      // Checkbox für aktuellen Nutzer
+      const chk = document.createElement('input');
+      chk.type      = 'checkbox';
+      chk.className = 'form-check-input me-3';
+      chk.checked   = !!statuses[currentUserUid];
+      chk.disabled  = !participants.includes(currentUserUid);
+      chk.addEventListener('click', async e => {
+        e.stopPropagation();
+        await updateDoc(doc(db,'bucketlist',id), {
+          [`statuses.${currentUserUid}`]: chk.checked
+        });
+      });
+      div.append(chk);
 
       // Titel
       const span = document.createElement('span');
@@ -161,7 +169,7 @@ function renderList(items) {
         div.append(rem);
       }
 
-      // Fälligkeitsdatum rechts
+      // Fälligkeitsdatum
       const due = document.createElement('small');
       due.className = 'text-muted ms-auto';
       if (dueDate) {
@@ -170,20 +178,14 @@ function renderList(items) {
       }
       div.append(due);
 
+      // Klick → Detail-Modal
+      div.addEventListener('click', () => showDetail(id));
       entriesList.append(div);
     });
 }
 
-// Klick auf Eintrag
-async function onEntryClick(e, id) {
-  // Checkbox toggle?
-  if (e.target.classList.contains('form-check-input')) {
-    await updateDoc(doc(db,'bucketlist',id), {
-      [`statuses.${currentUserUid}`]: e.target.checked
-    });
-    return;
-  }
-  // Detail-Modal öffnen
+// Detail-Modal öffnen
+async function showDetail(id) {
   detailId = id;
   const snap = await getDoc(doc(db,'bucketlist',id));
   const data = snap.data();
@@ -198,46 +200,43 @@ async function onEntryClick(e, id) {
   }
 
   detailParts.innerHTML = '';
-  data.participants.forEach(uid => {
-    // Hier wird jetzt der username geholt, nicht die UID
-    const user = users.find(u=>u.uid===uid);
-    const name = user ? user.username : uid;
-    const li   = document.createElement('li');
+  for (let uid of data.participants || []) {
+    const li = document.createElement('li');
     li.className = 'list-group-item d-flex justify-content-between';
-    li.textContent = name;
+    const user = users.find(u => u.uid === uid);
+    li.textContent = user ? user.username : uid;
     if (data.statuses?.[uid]) {
-      const chk = document.createElement('span');
-      chk.textContent = '✓';
-      chk.className   = 'text-success';
-      li.append(chk);
+      const ok = document.createElement('span');
+      ok.textContent = '✓'; ok.className = 'text-success';
+      li.append(ok);
     }
     detailParts.append(li);
-  });
+  }
 
-  // Delete
   btnDelete.onclick = async () => {
     if (confirm('Eintrag wirklich löschen?')) {
       await deleteDoc(doc(db,'bucketlist',detailId));
       detailModal.hide();
     }
   };
-  // Edit
-  btnEdit.onclick = () => {
-    editId = detailId;
-    createModalTitle.textContent = 'Eintrag bearbeiten';
-    formCreate.reset();
-    inputTitle.value = data.title;
-    inputDesc.value  = data.description || '';
-    inputDue.value   = data.dueDate
-      ? (data.dueDate.toDate ? data.dueDate.toDate() : new Date(data.dueDate))
-          .toISOString().slice(0,10)
-      : '';
-    populateCreateParticipants(data.participants);
-    detailModal.hide();
-    createModal.show();
-  };
+  btnEdit.onclick = () => startEdit(data);
 
   detailModal.show();
+}
+
+function startEdit(data) {
+  editId = detailId;
+  createModalTitle.textContent = 'Eintrag bearbeiten';
+  formCreate.reset();
+  inputTitle.value = data.title;
+  inputDesc.value  = data.description || '';
+  inputDue.value   = data.dueDate
+    ? (data.dueDate.toDate ? data.dueDate.toDate() : new Date(data.dueDate))
+        .toISOString().slice(0,10)
+    : '';
+  populateCreateParticipants(data.participants || []);
+  detailModal.hide();
+  createModal.show();
 }
 
 // "+" → Create-Modal
@@ -257,27 +256,29 @@ formCreate.addEventListener('submit', async e => {
   if (!title) return;
 
   // Unique-Titel
-  const conflict = itemsCache.some(it => it.title===title && (!editId||it.id!==editId));
+  const conflict = itemsCache.some(it =>
+    it.title === title && (!editId || it.id !== editId)
+  );
   if (conflict) {
     inputTitle.classList.add('is-invalid');
     return;
   }
   inputTitle.classList.remove('is-invalid');
 
-  const descVal = inputDesc.value.trim();
-  const dueVal  = inputDue.value;
-  const due     = dueVal ? Timestamp.fromDate(new Date(dueVal)) : null;
+  const descVal  = inputDesc.value.trim();
+  const dueVal   = inputDue.value;
+  const dueDate  = dueVal ? Timestamp.fromDate(new Date(dueVal)) : null;
   const selected = Array.from(
     participantsDiv.querySelectorAll('input:checked')
-  ).map(i=>i.value);
+  ).map(i => i.value);
   const statuses = {};
-  selected.forEach(uid=>statuses[uid]=false);
+  selected.forEach(uid => statuses[uid] = false);
 
   if (editId) {
     await updateDoc(doc(db,'bucketlist',editId), {
       title,
       description: descVal,
-      dueDate: due,
+      dueDate,
       participants: selected,
       statuses
     });
@@ -285,7 +286,7 @@ formCreate.addEventListener('submit', async e => {
     await addDoc(collection(db,'bucketlist'), {
       title,
       description: descVal,
-      dueDate: due,
+      dueDate,
       participants: selected,
       statuses,
       createdBy: currentUserUid,
