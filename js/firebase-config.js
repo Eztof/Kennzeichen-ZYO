@@ -1,7 +1,7 @@
 // js/firebase-config.js
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.19.1/firebase-app.js";
-import { getAuth }         from "https://www.gstatic.com/firebasejs/9.19.1/firebase-auth.js";
-import { getFirestore }    from "https://www.gstatic.com/firebasejs/9.19.1/firebase-firestore.js";
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.19.1/firebase-app.js';
+import { getAuth }        from 'https://www.gstatic.com/firebasejs/9.19.1/firebase-auth.js';
+import { getFirestore }   from 'https://www.gstatic.com/firebasejs/9.19.1/firebase-firestore.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDh-dzAPRQfywuodoNDVhkMZ1lMqNthklQ",
@@ -13,6 +13,8 @@ const firebaseConfig = {
   measurementId: "G-PZP456X5BZ"
 };
 
-const app  = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db   = getFirestore(app);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+export { auth, db };
