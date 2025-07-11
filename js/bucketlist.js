@@ -9,6 +9,7 @@ import {
   doc,
   addDoc,
   updateDoc,
+  deleteDoc,
   getDocs,
   getDoc,
   onSnapshot,
@@ -18,29 +19,36 @@ import {
 
 let currentUserUid;
 let users = [];
+let itemsCache = [];
+let settings = { bucketShowRemaining: false, bucketTimeFormat: 'days' };
+let editId = null;
 
 // DOM-Elemente
-const entriesList     = document.getElementById('entriesList');
-const btnAdd          = document.getElementById('btn-add');
-const btnLogout       = document.getElementById('btn-logout');
-const versionEl       = document.getElementById('app-version');
-const modalCreateEl   = document.getElementById('modal-create');
-const formCreate      = document.getElementById('form-create');
-const inputTitle      = document.getElementById('input-title');
-const inputDesc       = document.getElementById('input-desc');
-const inputDue        = document.getElementById('input-due');
-const participantsDiv = document.getElementById('create-participants');
-const modalDetailEl   = document.getElementById('modal-detail');
-const detailTitle     = document.getElementById('detail-title');
-const detailDesc      = document.getElementById('detail-desc');
-const detailDue       = document.getElementById('detail-due');
-const detailParts     = document.getElementById('detail-participants');
+const entriesList       = document.getElementById('entriesList');
+const btnAdd            = document.getElementById('btn-add');
+const btnLogout         = document.getElementById('btn-logout');
+const versionEl         = document.getElementById('app-version');
+const modalCreateEl     = document.getElementById('modal-create');
+const createModalTitle  = document.getElementById('create-modal-title');
+const formCreate        = document.getElementById('form-create');
+const inputTitle        = document.getElementById('input-title');
+const inputDesc         = document.getElementById('input-desc');
+const inputDue          = document.getElementById('input-due');
+const participantsDiv   = document.getElementById('create-participants');
+const btnSave           = document.getElementById('btn-save');
+const modalDetailEl     = document.getElementById('modal-detail');
+const detailTitle       = document.getElementById('detail-title');
+const detailDesc        = document.getElementById('detail-desc');
+const detailDue         = document.getElementById('detail-due');
+const detailParts       = document.getElementById('detail-participants');
+const btnDelete         = document.getElementById('btn-delete');
+const btnEdit           = document.getElementById('btn-edit');
 
 const createModal = new bootstrap.Modal(modalCreateEl);
 const detailModal = new bootstrap.Modal(modalDetailEl);
 
-// 1) Teilnehmer-Checkboxen für Create-Modal
-function populateCreateParticipants() {
+// Teilnehmer-Checkboxen füllen
+function populateCreateParticipants(selected=[]) {
   participantsDiv.innerHTML = '';
   users.forEach(u => {
     const div = document.createElement('div');
@@ -50,6 +58,7 @@ function populateCreateParticipants() {
     inp.type      = 'checkbox';
     inp.id        = 'part_' + u.uid;
     inp.value     = u.uid;
+    if (selected.includes(u.uid)) inp.checked = true;
     const lab = document.createElement('label');
     lab.className = 'form-check-label';
     lab.htmlFor   = inp.id;
@@ -59,144 +68,198 @@ function populateCreateParticipants() {
   });
 }
 
-// 2) Auth-State & Setup
+// Formatierung verbleibender Zeit
+function formatRemaining(due) {
+  const now = new Date();
+  const d = due instanceof Timestamp ? due.toDate() : new Date(due);
+  let diff = d - now;
+  if (diff < 0) return 'erledigt';
+  switch (settings.bucketTimeFormat) {
+    case 'hours':
+      return Math.ceil(diff/3600000) + ' Stunden';
+    case 'hhmm': {
+      const h = Math.floor(diff/3600000);
+      const m = Math.floor((diff%3600000)/60000);
+      return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+    }
+    default: // days
+      return Math.ceil(diff/86400000) + ' Tage';
+  }
+}
+
+// Auth & Initialisierung
 onAuthStateChanged(auth, async user => {
   if (!user) return location.href = 'index.html';
   currentUserUid = user.uid;
 
-  // 2a) Nutzerliste aus Firestore
-  const userSnap = await getDocs(collection(db, 'users'));
+  // Nutzerliste
+  const userSnap = await getDocs(collection(db,'users'));
   users = userSnap.docs.map(d => ({
     uid: d.id,
     username: d.data().username
   }));
-  populateCreateParticipants();
 
-  // 2b) Versionsnummer
-  const infoSnap = await getDocs(collection(db, 'infos'));
-  const webappDoc = infoSnap.docs.find(d => d.id === 'webapp');
+  // Settings aus Nutzer-Dokument
+  const uDoc = await getDoc(doc(db,'users',currentUserUid));
+  if (uDoc.exists()) {
+    const d = uDoc.data();
+    settings.bucketShowRemaining = !!d.bucketShowRemaining;
+    settings.bucketTimeFormat    = d.bucketTimeFormat || 'days';
+  }
+
+  // Version
+  const infoSnap = await getDocs(collection(db,'infos'));
+  const webappDoc = infoSnap.docs.find(d=>d.id==='webapp');
   versionEl.textContent = webappDoc
     ? webappDoc.data().version
     : 'unbekannt';
 
-  // 2c) Realtime-Listener für bucketlist
-  onSnapshot(collection(db, 'bucketlist'), snap => {
-    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderList(items);
+  // Realtime-Listener Bucketlist
+  onSnapshot(collection(db,'bucketlist'), snap => {
+    itemsCache = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    renderList(itemsCache);
   });
 });
 
-// 3) Logout
+// Logout
 btnLogout.onclick = () =>
-  signOut(auth).then(() => location.href = 'index.html');
+  signOut(auth).then(()=>location.href='index.html');
 
-// 4) Liste rendern
+// Liste rendern (sortiert nach Fälligkeitsdatum)
 function renderList(items) {
   entriesList.innerHTML = '';
-  items.forEach(item => {
+  const sorted = [...items].sort((a,b)=>{
+    const da = a.dueDate? (a.dueDate.toDate? a.dueDate.toDate() : new Date(a.dueDate)) : Infinity;
+    const db = b.dueDate? (b.dueDate.toDate? b.dueDate.toDate() : new Date(b.dueDate)) : Infinity;
+    return da - db;
+  });
+  sorted.forEach(item=>{
     const { id, title, dueDate, participants, statuses } = item;
-    const isParticipant = participants.includes(currentUserUid);
-    const allChecked = participants.length > 0 &&
-                       participants.every(u => statuses?.[u]);
+    const isPart    = participants.includes(currentUserUid);
+    const allChecked= participants.length>0 &&
+      participants.every(u=>statuses?.[u]);
 
     const div = document.createElement('div');
-    div.className = 'list-group-item d-flex align-items-center '
-                   + (allChecked ? 'list-group-item-success' : '');
-    div.dataset.id = id;
+    div.className   = 'list-group-item d-flex align-items-center ' +
+                      (allChecked?'list-group-item-success':'' );
+    div.dataset.id  = id;
 
-    // 4a) Checkbox für Teilnehmende
-    if (isParticipant) {
+    if (isPart) {
       const chk = document.createElement('input');
-      chk.type      = 'checkbox';
-      chk.className = 'form-check-input me-2 entry-checkbox';
-      chk.checked   = !!statuses?.[currentUserUid];
-      chk.dataset.id= id;
-      div.appendChild(chk);
+      chk.type        = 'checkbox';
+      chk.className   = 'form-check-input me-2 entry-checkbox';
+      chk.checked     = !!statuses[currentUserUid];
+      chk.dataset.id  = id;
+      div.append(chk);
     }
 
-    // 4b) Titel
     const span = document.createElement('span');
     span.textContent = title;
-    div.appendChild(span);
+    div.append(span);
 
-    // 4c) Datum (falls gesetzt)
+    if (settings.bucketShowRemaining && dueDate) {
+      const rem = document.createElement('small');
+      rem.className   = 'text-muted ms-3';
+      rem.textContent = formatRemaining(dueDate);
+      div.append(rem);
+    }
+
     const due = document.createElement('small');
-    due.className = 'text-muted ms-auto';
+    due.className   = 'text-muted ms-auto';
     if (dueDate) {
-      let d;
-      if (dueDate instanceof Timestamp) {
-        d = dueDate.toDate();
-      } else {
-        d = new Date(dueDate);
-      }
+      const d = dueDate.toDate? dueDate.toDate() : new Date(dueDate);
       due.textContent = d.toLocaleDateString();
     }
-    div.appendChild(due);
+    div.append(due);
 
-    entriesList.appendChild(div);
+    entriesList.append(div);
   });
 }
 
-// 5) Klick-Handling
-entriesList.addEventListener('click', async e => {
-  const item = e.target.closest('.list-group-item');
-  if (!item) return;
-  const id = item.dataset.id;
+// Klick-Handling
+entriesList.addEventListener('click', async e=>{
+  const itemEl = e.target.closest('.list-group-item');
+  if (!itemEl) return;
+  const id = itemEl.dataset.id;
 
-  // 5a) Checkbox togglen
+  // Checkbox toggeln
   if (e.target.classList.contains('entry-checkbox')) {
-    await updateDoc(doc(db, 'bucketlist', id), {
+    await updateDoc(doc(db,'bucketlist',id), {
       [`statuses.${currentUserUid}`]: e.target.checked
     });
     return;
   }
 
-  // 5b) Details anzeigen
-  const ref  = doc(db, 'bucketlist', id);
-  const snap = await getDoc(ref);
+  // Detail-Modal
+  const snap = await getDoc(doc(db,'bucketlist',id));
   const data = snap.data();
-
   detailTitle.textContent = data.title;
   detailDesc.textContent  = data.description || '–';
   if (data.dueDate) {
-    const d = data.dueDate instanceof Timestamp
-      ? data.dueDate.toDate()
-      : new Date(data.dueDate);
-    detailDue.textContent = 'Fällig bis: ' + d.toLocaleDateString();
-  } else {
-    detailDue.textContent = '';
-  }
+    const d = data.dueDate.toDate? data.dueDate.toDate() : new Date(data.dueDate);
+    detailDue.textContent = 'Fällig bis: '+d.toLocaleDateString();
+  } else detailDue.textContent='';
 
-  detailParts.innerHTML = '';
-  data.participants.forEach(uid => {
-    const u  = users.find(x => x.uid === uid);
+  detailParts.innerHTML='';
+  data.participants.forEach(uid=>{
+    const u = users.find(x=>x.uid===uid);
     const li = document.createElement('li');
     li.className = 'list-group-item d-flex justify-content-between';
-    li.textContent = u ? u.username : uid;
+    li.textContent = u? u.username : uid;
     if (data.statuses?.[uid]) {
-      const chk = document.createElement('span');
-      chk.textContent = '✓';
-      chk.className   = 'text-success';
-      li.appendChild(chk);
+      const c = document.createElement('span');
+      c.textContent='✓'; c.className='text-success';
+      li.append(c);
     }
-    detailParts.appendChild(li);
+    detailParts.append(li);
   });
+
+  // Buttons
+  btnDelete.onclick = async ()=>{
+    if (confirm('Eintrag wirklich löschen?')) {
+      await deleteDoc(doc(db,'bucketlist',id));
+      detailModal.hide();
+    }
+  };
+  btnEdit.onclick = ()=>{
+    // In den Create-Modal wechseln mit Vorbefüllung
+    editId = id;
+    createModalTitle.textContent = 'Eintrag bearbeiten';
+    inputTitle.value    = data.title;
+    inputDesc.value     = data.description||'';
+    inputDue.value      = data.dueDate
+      ? (data.dueDate.toDate? data.dueDate.toDate() : new Date(data.dueDate))
+          .toISOString().slice(0,10)
+      : '';
+    populateCreateParticipants(data.participants);
+    detailModal.hide();
+    createModal.show();
+  };
 
   detailModal.show();
 });
 
-// 6) "+“ öffnet Create-Modal
-btnAdd.addEventListener('click', () => {
+// "+" öffnet Create-Modal im Create-Modus
+btnAdd.addEventListener('click', ()=>{
+  editId = null;
+  createModalTitle.textContent = 'Eintrag erstellen';
   formCreate.reset();
+  inputTitle.classList.remove('is-invalid');
   populateCreateParticipants();
   createModal.show();
 });
 
-// 7) Create-Formular absenden
-formCreate.addEventListener('submit', async e => {
+// Formular absenden (Create oder Update)
+formCreate.addEventListener('submit', async e=>{
   e.preventDefault();
   const title = inputTitle.value.trim();
-  if (!title) {
+  if (!title) return;
+
+  // Unique-Titel prüfen
+  const conflict = itemsCache.some(item=>
+    item.title === title && (!editId || item.id!==editId)
+  );
+  if (conflict) {
     inputTitle.classList.add('is-invalid');
     return;
   }
@@ -207,23 +270,33 @@ formCreate.addEventListener('submit', async e => {
   const due     = dueVal
     ? Timestamp.fromDate(new Date(dueVal))
     : null;
-
   const selected = Array.from(
     participantsDiv.querySelectorAll('input:checked')
-  ).map(i => i.value);
-
+  ).map(i=>i.value);
   const statuses = {};
-  selected.forEach(uid => statuses[uid] = false);
+  selected.forEach(uid=>statuses[uid]=false);
 
-  await addDoc(collection(db, 'bucketlist'), {
-    title,
-    description: descVal,
-    dueDate: due,
-    participants: selected,
-    statuses,
-    createdBy: currentUserUid,
-    createdAt: serverTimestamp()
-  });
+  if (editId) {
+    // Update
+    await updateDoc(doc(db,'bucketlist',editId), {
+      title,
+      description: descVal,
+      dueDate: due,
+      participants: selected,
+      statuses
+    });
+  } else {
+    // Create
+    await addDoc(collection(db,'bucketlist'), {
+      title,
+      description: descVal,
+      dueDate: due,
+      participants: selected,
+      statuses,
+      createdBy: currentUserUid,
+      createdAt: serverTimestamp()
+    });
+  }
 
   createModal.hide();
 });
