@@ -28,7 +28,7 @@ onAuthStateChanged(auth, async user => {
   }
   currentUid = user.uid;
 
-  // Version
+  // Version holen
   const infoSnap = await getDoc(doc(db, 'infos', 'webapp'));
   versionEl.textContent = infoSnap.exists()
     ? infoSnap.data().version
@@ -59,7 +59,7 @@ formSettings.addEventListener('submit', async e => {
     bucketShowRemaining: cbShowRemaining.checked,
     bucketTimeFormat: selTimeFormat.value
   });
-  // kurzes Feedback
+  // Feedback
   const btn = formSettings.querySelector('button[type=submit]');
   btn.textContent = 'Gespeichert';
   setTimeout(() => btn.textContent = 'Speichern', 1500);
