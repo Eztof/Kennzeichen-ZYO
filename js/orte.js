@@ -9,128 +9,166 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
-  getDocs,
   getDoc,
   onSnapshot,
   serverTimestamp,
   Timestamp
 } from 'https://www.gstatic.com/firebasejs/9.19.1/firebase-firestore.js';
 
-let currentUserUid;
-let itemsCache   = [];
-let editId       = null;
-let detailId     = null;
-let mapLoaded    = false;
+let currentUserUid, map, markersLayer, editId = null, detailId = null;
 
-// Views & Nav
-const navLinks    = document.querySelectorAll('.nav-link');
-const views       = document.querySelectorAll('.view');
-const btnLogout   = document.getElementById('btn-logout');
-const versionEl   = document.getElementById('app-version');
+// DOM
+const navLinks     = document.querySelectorAll('.nav-link');
+const views        = document.querySelectorAll('.view');
+const btnLogout    = document.getElementById('btn-logout');
+const versionEl    = document.getElementById('app-version');
+const placesList   = document.getElementById('placesList');
+const btnAdd       = document.getElementById('btn-add');
 
-// List
-const placesList  = document.getElementById('placesList');
+const modalPlace      = new bootstrap.Modal(document.getElementById('modal-place'));
+const formPlace       = document.getElementById('form-place');
+const titleEl         = document.getElementById('place-modal-title');
+const inputPlace      = document.getElementById('input-place');
+const inputDesc       = document.getElementById('input-desc');
+const inputDate       = document.getElementById('input-date');
+const inputLat        = document.getElementById('input-lat');
+const inputLng        = document.getElementById('input-lng');
 
-// Create/Edit Modal
-const modalPlace        = new bootstrap.Modal(document.getElementById('modal-place'));
-const formPlace         = document.getElementById('form-place');
-const placeModalTitle   = document.getElementById('place-modal-title');
-const inputPlace        = document.getElementById('input-place');
-const inputDesc         = document.getElementById('input-desc');
-const inputDate         = document.getElementById('input-date');
-const btnAdd            = document.getElementById('btn-add');
-
-// Detail/Delete Modal
 const modalDetail       = new bootstrap.Modal(document.getElementById('modal-place-detail'));
-const detailPlaceTitle  = document.getElementById('detail-place-title');
-const detailPlaceDesc   = document.getElementById('detail-place-desc');
-const detailPlaceDate   = document.getElementById('detail-place-date');
+const detailTitleEl     = document.getElementById('detail-place-title');
+const detailDescEl      = document.getElementById('detail-place-desc');
+const detailDateEl      = document.getElementById('detail-place-date');
+const detailCoordsEl    = document.getElementById('detail-place-coords');
 const btnDelete         = document.getElementById('btn-delete');
 const btnEdit           = document.getElementById('btn-edit');
 
-// Helper: render list
-function renderList(items) {
-  placesList.innerHTML = '';
-  // alphabetisch sortieren
-  items.sort((a,b)=> a.name.localeCompare(b.name))
-       .forEach(item => {
-    const li = document.createElement('li');
-    li.className = 'list-group-item list-group-item-action';
-    li.textContent = item.name;
-    li.dataset.id = item.id;
-    li.addEventListener('click',()=> showDetail(item.id));
-    placesList.append(li);
-  });
-}
+let itemsCache = [];
 
-// Helper: load map
-async function loadMap() {
-  if (mapLoaded) return;
-  mapLoaded = true;
-  const map = L.map('map').setView([51.1657,10.4515],6);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
-  // Wenn du später Koordinaten speicherst, hier Marker hinzufügen
-}
-
-// Click on nav → toggle views
+// NAVIGATION
 navLinks.forEach(a => {
   a.onclick = e => {
     e.preventDefault();
-    const v = a.dataset.view;
-    views.forEach(x =>
-      x.id === 'view-'+v
-        ? x.classList.remove('d-none')
-        : x.classList.add('d-none')
-    );
+    const view = a.dataset.view;
+    views.forEach(v => v.id === 'view-'+view 
+      ? v.classList.remove('d-none') : v.classList.add('d-none'));
     navLinks.forEach(n=>n.classList.toggle('active', n===a));
-    if (v==='map') loadMap();
+    if (view === 'map' && !map) initMap();
+    if (view === 'map') updateMarkers();
   };
 });
 
-// Auth & initial load
+// AUTH & LOAD
 onAuthStateChanged(auth, async user => {
-  if (!user) return location.href = 'index.html';
+  if (!user) return location.href='index.html';
   currentUserUid = user.uid;
 
   // Version
-  const infoSnap = await getDoc(doc(db,'infos','webapp'));
-  versionEl.textContent = infoSnap.exists()
-    ? infoSnap.data().version
-    : 'unbekannt';
+  const info = await getDoc(doc(db,'infos','webapp'));
+  versionEl.textContent = info.exists()? info.data().version : '–';
 
-  // Realtime-Listener für Orte
+  // Realtime Listener
   onSnapshot(collection(db,'orte'), snap => {
-    itemsCache = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-    renderList(itemsCache);
+    itemsCache = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    renderList();
+    if (map) updateMarkers();
   });
 });
 
-// Logout
-btnLogout.onclick = () =>
-  signOut(auth).then(()=>location.href='index.html');
+// INIT MAP
+function initMap(){
+  map = L.map('map').setView([51.1657,10.4515],6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'&copy; OpenStreetMap'
+  }).addTo(map);
+  markersLayer = L.layerGroup().addTo(map);
+}
 
-// "+" → Create
-btnAdd.onclick = () => {
-  editId = null;
-  placeModalTitle.textContent = 'Ort hinzufügen';
+// RENDER LIST
+function renderList(){
+  placesList.innerHTML = '';
+  itemsCache.sort((a,b)=>a.name.localeCompare(b.name))
+    .forEach(item=>{
+      const li = document.createElement('li');
+      li.className='list-group-item list-group-item-action';
+      li.textContent=item.name;
+      li.onclick=()=>showDetail(item.id);
+      placesList.append(li);
+    });
+}
+
+// UPDATE MARKERS
+function updateMarkers(){
+  markersLayer.clearLayers();
+  itemsCache.forEach(item=>{
+    if (item.lat!=null && item.lng!=null){
+      const marker = L.marker([item.lat,item.lng])
+        .bindPopup(`<strong>${item.name}</strong>`);
+      markersLayer.addLayer(marker);
+    }
+  });
+}
+
+// SHOW DETAIL
+async function showDetail(id){
+  detailId = id;
+  const snap = await getDoc(doc(db,'orte',id));
+  const d = snap.data();
+  detailTitleEl.textContent = d.name;
+  detailDescEl.textContent  = d.description||'';
+  if (d.date){
+    const dd = d.date.toDate? d.date.toDate():new Date(d.date);
+    detailDateEl.textContent = dd.toLocaleDateString();
+    detailDateEl.parentElement.classList.remove('d-none');
+  } else detailDateEl.parentElement.classList.add('d-none');
+  if (d.lat!=null && d.lng!=null){
+    detailCoordsEl.textContent = `Lat: ${d.lat}, Lng: ${d.lng}`;
+    detailCoordsEl.parentElement.classList.remove('d-none');
+  } else detailCoordsEl.parentElement.classList.add('d-none');
+  modalDetail.show();
+}
+
+// DELETE & EDIT
+btnDelete.onclick = async ()=>{
+  if(confirm('Ort wirklich löschen?')){
+    await deleteDoc(doc(db,'orte',detailId));
+    modalDetail.hide();
+  }
+};
+btnEdit.onclick = async ()=>{
+  const snap = await getDoc(doc(db,'orte',detailId));
+  const d = snap.data();
+  editId = detailId;
+  titleEl.textContent = 'Ort bearbeiten';
+  inputPlace.value = d.name;
+  inputDesc.value  = d.description||'';
+  inputDate.value  = d.date
+    ? (d.date.toDate?d.date.toDate():new Date(d.date))
+      .toISOString().slice(0,10) : '';
+  inputLat.value   = d.lat!=null? d.lat : '';
+  inputLng.value   = d.lng!=null? d.lng : '';
+  inputPlace.classList.remove('is-invalid');
+  modalDetail.hide();
+  modalPlace.show();
+};
+
+// ADD NEW
+btnAdd.onclick=()=>{
+  editId=null;
+  titleEl.textContent='Ort hinzufügen';
   formPlace.reset();
   inputPlace.classList.remove('is-invalid');
   modalPlace.show();
 };
 
-// Create/Edit submit
-formPlace.addEventListener('submit', async e => {
+// SAVE/Create
+formPlace.addEventListener('submit', async e=>{
   e.preventDefault();
   const name = inputPlace.value.trim();
-  if (!name) return;
-  // unique check
-  const exists = itemsCache.some(it =>
-    it.name.toLowerCase() === name.toLowerCase()
-    && (!editId || it.id !== editId)
+  if(!name) return;
+  const exists = itemsCache.some(it=>
+    it.name.toLowerCase()===name.toLowerCase() && it.id!==editId
   );
-  if (exists) {
+  if(exists){
     inputPlace.classList.add('is-invalid');
     return;
   }
@@ -140,62 +178,25 @@ formPlace.addEventListener('submit', async e => {
   const dateVal = inputDate.value
     ? Timestamp.fromDate(new Date(inputDate.value))
     : null;
+  const latVal  = parseFloat(inputLat.value);
+  const lngVal  = parseFloat(inputLng.value);
 
-  if (editId) {
-    await updateDoc(doc(db,'orte',editId), {
-      name, description: descVal, date: dateVal
-    });
+  const data = {
+    name, description: descVal, date: dateVal,
+    lat: isFinite(latVal)? latVal : null,
+    lng: isFinite(lngVal)? lngVal : null
+  };
+
+  if(editId){
+    await updateDoc(doc(db,'orte',editId), data);
   } else {
     await addDoc(collection(db,'orte'), {
-      name, description: descVal, date: dateVal,
-      createdBy: currentUserUid,
+      ...data, createdBy: currentUserUid,
       createdAt: serverTimestamp()
     });
   }
   modalPlace.hide();
 });
 
-// Show detail
-async function showDetail(id) {
-  detailId = id;
-  const snap = await getDoc(doc(db,'orte',id));
-  const data = snap.data();
-  detailPlaceTitle.textContent = data.name;
-  detailPlaceDesc.textContent  = data.description || '';
-  if (data.date) {
-    const d = data.date.toDate ? data.date.toDate() : new Date(data.date);
-    detailPlaceDate.textContent = d.toLocaleDateString();
-    detailPlaceDate.parentElement.classList.remove('d-none');
-  } else {
-    detailPlaceDate.parentElement.classList.add('d-none');
-  }
-  modalDetail.show();
-}
-
-// Delete
-btnDelete.onclick = async () => {
-  if (!detailId) return;
-  if (confirm('Ort wirklich löschen?')) {
-    await deleteDoc(doc(db,'orte',detailId));
-    modalDetail.hide();
-  }
-};
-
-// Edit from detail
-btnEdit.onclick = () => {
-  const item = itemsCache.find(i=>i.id===detailId);
-  if (!item) return;
-  editId = detailId;
-  placeModalTitle.textContent = 'Ort bearbeiten';
-  inputPlace.value = item.name;
-  inputDesc.value  = item.description || '';
-  inputDate.value  = item.date
-    ? (item.date.toDate
-        ? item.date.toDate()
-        : new Date(item.date))
-        .toISOString().slice(0,10)
-    : '';
-  inputPlace.classList.remove('is-invalid');
-  modalDetail.hide();
-  modalPlace.show();
-};
+// LOGOUT
+btnLogout.onclick = ()=>signOut(auth).then(()=>location.href='index.html');
