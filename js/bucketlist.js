@@ -76,12 +76,13 @@ function populateCreateParticipants(selected = []) {
   });
 }
 
-// format remaining time
+// format remaining time (only for future dates)
 function formatRemaining(due) {
   const now = new Date();
   const d   = due instanceof Timestamp ? due.toDate() : new Date(due);
-  let diff  = d - now;
-  if (diff < 0) return 'erledigt';
+  const diff = d - now;
+  // if due date passed, we suppress display entirely
+  if (diff <= 0) return '';
   switch (settings.bucketTimeFormat) {
     case 'minutes': return Math.ceil(diff/60000)       + ' Min';
     case 'hours':   return Math.ceil(diff/3600000)     + ' Std';
@@ -124,7 +125,7 @@ onAuthStateChanged(auth, async user => {
 btnLogout.onclick = () =>
   signOut(auth).then(() => location.href = 'index.html');
 
-// render list with checkbox + completed indicator
+// render list with checkbox + completed badge
 function renderList() {
   entriesList.innerHTML = '';
   itemsCache
@@ -162,12 +163,15 @@ function renderList() {
       span.textContent = title;
       li.append(span);
 
-      // remaining time
+      // remaining time (only future)
       if (settings.bucketShowRemaining && dueDate) {
-        const rem = document.createElement('small');
-        rem.className   = 'text-muted ms-3';
-        rem.textContent = formatRemaining(dueDate);
-        li.append(rem);
+        const remText = formatRemaining(dueDate);
+        if (remText) {
+          const rem = document.createElement('small');
+          rem.className   = 'text-muted ms-3';
+          rem.textContent = remText;
+          li.append(rem);
+        }
       }
 
       // due date
