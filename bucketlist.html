@@ -1,4 +1,3 @@
-<!-- bucketlist.html -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -40,19 +39,20 @@
   <!-- Floating "+" Button -->
   <button id="btn-add" type="button" class="btn btn-primary">+</button>
 
-  <!-- Create Modal -->
+  <!-- Create/Edit Modal -->
   <div class="modal fade" id="modal-create" tabindex="-1">
     <div class="modal-dialog modal-dialog-scrollable">
       <div class="modal-content">
         <form id="form-create">
           <div class="modal-header">
-            <h5 class="modal-title">Eintrag erstellen</h5>
+            <h5 id="create-modal-title" class="modal-title">Eintrag erstellen</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
             <div class="mb-3">
               <label for="input-title" class="form-label">Titel <span class="text-danger">*</span></label>
               <input type="text" id="input-title" class="form-control" required>
+              <div class="invalid-feedback">Eintrag mit diesem Titel existiert bereits.</div>
             </div>
             <div class="mb-3">
               <label for="input-desc" class="form-label">Beschreibung</label>
@@ -69,7 +69,7 @@
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-            <button type="submit" class="btn btn-primary">Speichern</button>
+            <button type="submit" class="btn btn-primary" id="btn-save">Speichern</button>
           </div>
         </form>
       </div>
@@ -88,10 +88,12 @@
           <p id="detail-desc"></p>
           <p id="detail-due" class="text-muted"></p>
           <h6>Beteiligte</h6>
-          <ul id="detail-participants" class="list-group"></ul>
+          <ul id="detail-participants" class="list-group mb-3"></ul>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+          <button id="btn-delete" class="btn btn-danger">Entfernen</button>
+          <button id="btn-edit" class="btn btn-secondary">Bearbeiten</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Schließen</button>
         </div>
       </div>
     </div>
