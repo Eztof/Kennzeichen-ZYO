@@ -1,13 +1,7 @@
 // js/dashboard.js
 import { auth, db } from './firebase-config.js';
-import {
-  onAuthStateChanged,
-  signOut
-} from 'https://www.gstatic.com/firebasejs/9.19.1/firebase-auth.js';
-import {
-  doc,
-  getDoc
-} from 'https://www.gstatic.com/firebasejs/9.19.1/firebase-firestore.js';
+import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/9.19.1/firebase-auth.js';
+import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/9.19.1/firebase-firestore.js';
 
 const btnLogout = document.getElementById('btn-logout');
 const versionEl = document.getElementById('app-version');
@@ -17,14 +11,9 @@ onAuthStateChanged(auth, async user => {
     location.href = 'index.html';
     return;
   }
-
-  // Version aus Firestore lesen
-  try {
-    const vDoc = await getDoc(doc(db, 'infos', 'webapp'));
-    versionEl.textContent = vDoc.exists() ? vDoc.data().version : 'unbekannt';
-  } catch {
-    versionEl.textContent = 'Fehler';
-  }
+  // Version holen
+  const vDoc = await getDoc(doc(db, 'infos', 'webapp'));
+  versionEl.textContent = vDoc.exists() ? vDoc.data().version : 'unbekannt';
 });
 
 btnLogout.onclick = () =>
