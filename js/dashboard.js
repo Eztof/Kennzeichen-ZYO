@@ -1,4 +1,3 @@
-// js/dashboard.js
 import { auth, db } from './firebase-config.js';
 import {
   onAuthStateChanged,
@@ -28,30 +27,27 @@ onAuthStateChanged(auth, async user => {
   }
   currentUid = user.uid;
 
-  // Version holen
+  // Version laden
   const infoSnap = await getDoc(doc(db, 'infos', 'webapp'));
   versionEl.textContent = infoSnap.exists()
     ? infoSnap.data().version
     : 'unbekannt';
 
-  // Nutzereinstellungen laden
+  // Nutzereinstellungen
   const uSnap = await getDoc(doc(db, 'users', currentUid));
   if (uSnap.exists()) {
-    const data = uSnap.data();
-    cbShowRemaining.checked = !!data.bucketShowRemaining;
-    selTimeFormat.value     = data.bucketTimeFormat || 'days';
+    const d = uSnap.data();
+    cbShowRemaining.checked = !!d.bucketShowRemaining;
+    selTimeFormat.value     = d.bucketTimeFormat || 'days';
   }
 });
 
-// Logout
 btnLogout.onclick = () =>
   signOut(auth).then(() => location.href = 'index.html');
 
-// Settings-Modal öffnen
 btnSettings.onclick = () =>
   settingsModal.show();
 
-// Einstellungen speichern
 formSettings.addEventListener('submit', async e => {
   e.preventDefault();
   if (!currentUid) return;
@@ -59,7 +55,6 @@ formSettings.addEventListener('submit', async e => {
     bucketShowRemaining: cbShowRemaining.checked,
     bucketTimeFormat: selTimeFormat.value
   });
-  // Feedback
   const btn = formSettings.querySelector('button[type=submit]');
   btn.textContent = 'Gespeichert';
   setTimeout(() => btn.textContent = 'Speichern', 1500);
