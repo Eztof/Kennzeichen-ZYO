@@ -7,8 +7,7 @@ import {
 import {
   doc,
   getDoc,
-  updateDoc,
-  getDocs
+  updateDoc
 } from 'https://www.gstatic.com/firebasejs/9.19.1/firebase-firestore.js';
 
 const btnLogout       = document.getElementById('btn-logout');
@@ -22,47 +21,47 @@ const selTimeFormat   = document.getElementById('set-time-format');
 let currentUid = null;
 const settingsModal = new bootstrap.Modal(modalSettingsEl);
 
-// 1) Auth & initiales Laden
 onAuthStateChanged(auth, async user => {
-  if (!user) return location.href = 'index.html';
+  if (!user) {
+    location.href = 'index.html';
+    return;
+  }
   currentUid = user.uid;
 
-  // 1a) Versionsnummer
+  // Version
   const infoSnap = await getDoc(doc(db, 'infos', 'webapp'));
   versionEl.textContent = infoSnap.exists()
     ? infoSnap.data().version
     : 'unbekannt';
 
-  // 1b) Nutzereinstellungen laden
-  const uDoc = await getDoc(doc(db, 'users', currentUid));
-  if (uDoc.exists()) {
-    const data = uDoc.data();
+  // Nutzereinstellungen laden
+  const uSnap = await getDoc(doc(db, 'users', currentUid));
+  if (uSnap.exists()) {
+    const data = uSnap.data();
     cbShowRemaining.checked = !!data.bucketShowRemaining;
     selTimeFormat.value     = data.bucketTimeFormat || 'days';
   }
 });
 
-// 2) Logout
+// Logout
 btnLogout.onclick = () =>
   signOut(auth).then(() => location.href = 'index.html');
 
-// 3) Settings-Modal öffnen
-btnSettings.addEventListener('click', () => {
+// Settings-Modal öffnen
+btnSettings.onclick = () =>
   settingsModal.show();
-});
 
-// 4) Settings speichern
+// Einstellungen speichern
 formSettings.addEventListener('submit', async e => {
   e.preventDefault();
   if (!currentUid) return;
-  const ref = doc(db, 'users', currentUid);
-  await updateDoc(ref, {
+  await updateDoc(doc(db, 'users', currentUid), {
     bucketShowRemaining: cbShowRemaining.checked,
     bucketTimeFormat: selTimeFormat.value
   });
   // kurzes Feedback
   const btn = formSettings.querySelector('button[type=submit]');
   btn.textContent = 'Gespeichert';
-  setTimeout(() => { btn.textContent = 'Speichern'; }, 1500);
+  setTimeout(() => btn.textContent = 'Speichern', 1500);
   settingsModal.hide();
 });
