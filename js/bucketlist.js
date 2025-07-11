@@ -39,7 +39,7 @@ const detailParts     = document.getElementById('detail-participants');
 const createModal = new bootstrap.Modal(modalCreateEl);
 const detailModal = new bootstrap.Modal(modalDetailEl);
 
-// Teilnehmer-Checkboxen erzeugen
+// Teilnehmer-Checkboxen füllen
 function populateCreateParticipants() {
   participantsDiv.innerHTML = '';
   users.forEach(u => {
@@ -59,7 +59,7 @@ function populateCreateParticipants() {
   });
 }
 
-// Auth & Setup
+// Auth & Initialisierung
 onAuthStateChanged(auth, async user => {
   if (!user) {
     location.href = 'index.html';
@@ -76,11 +76,13 @@ onAuthStateChanged(auth, async user => {
   populateCreateParticipants();
 
   // Version
-  const infoSnap = await getDocs(collection(db, 'infos'));
-  const vDoc = infoSnap.docs.find(d => d.id === 'webapp');
-  versionEl.textContent = vDoc?.data().version || 'unbekannt';
+  const infos      = await getDocs(collection(db, 'infos'));
+  const webappDoc  = infos.docs.find(d => d.id === 'webapp');
+  versionEl.textContent = webappDoc
+    ? webappDoc.data().version
+    : 'unbekannt';
 
-  // Realtime Bucketlist
+  // Realtime-Listener
   onSnapshot(collection(db, 'bucketlist'), snap => {
     renderList(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   });
@@ -107,10 +109,10 @@ function renderList(items) {
     // Checkbox
     if (isParticipant) {
       const chk = document.createElement('input');
-      chk.type        = 'checkbox';
-      chk.className   = 'form-check-input me-2 entry-checkbox';
-      chk.checked     = !!statuses?.[currentUserUid];
-      chk.dataset.id  = id;
+      chk.type      = 'checkbox';
+      chk.className = 'form-check-input me-2 entry-checkbox';
+      chk.checked   = !!statuses?.[currentUserUid];
+      chk.dataset.id= id;
       div.appendChild(chk);
     }
 
@@ -119,16 +121,15 @@ function renderList(items) {
     span.textContent = title;
     div.appendChild(span);
 
-    // Datum (nur Datum)
+    // Datum
     const due = document.createElement('small');
-    due.className = 'text-muted ms-auto';
+    due.className   = 'text-muted ms-auto';
     if (dueDate) {
-      // Firestore-Timestamp oder ISO-String
       let d;
       if (dueDate.toDate) {
-        d = dueDate.toDate();
+        d = dueDate.toDate();      // Firestore Timestamp
       } else {
-        d = new Date(dueDate);
+        d = new Date(dueDate);     // ISO-String
       }
       due.textContent = d.toLocaleDateString();
     }
@@ -152,22 +153,26 @@ entriesList.addEventListener('click', async e => {
     return;
   }
 
-  // Detail anzeigen
-  const ref     = doc(db, 'bucketlist', id);
-  const snap    = await getDoc(ref);
-  const data    = snap.data();
+  // Detail-Modal öffnen
+  const ref  = doc(db, 'bucketlist', id);
+  const snap = await getDoc(ref);
+  const data = snap.data();
+
   detailTitle.textContent = data.title;
   detailDesc.textContent  = data.description || '–';
   if (data.dueDate) {
-    let d = data.dueDate.toDate ? data.dueDate.toDate() : new Date(data.dueDate);
+    let d = data.dueDate.toDate
+      ? data.dueDate.toDate()
+      : new Date(data.dueDate);
     detailDue.textContent = 'Fällig bis: ' + d.toLocaleDateString();
   } else {
     detailDue.textContent = '';
   }
+
   detailParts.innerHTML = '';
   data.participants.forEach(uid => {
-    const u   = users.find(x => x.uid === uid);
-    const li  = document.createElement('li');
+    const u  = users.find(x => x.uid === uid);
+    const li = document.createElement('li');
     li.className = 'list-group-item d-flex justify-content-between';
     li.textContent = u ? u.username : uid;
     if (data.statuses?.[uid]) {
@@ -178,6 +183,7 @@ entriesList.addEventListener('click', async e => {
     }
     detailParts.appendChild(li);
   });
+
   detailModal.show();
 });
 
@@ -188,7 +194,7 @@ btnAdd.addEventListener('click', () => {
   createModal.show();
 });
 
-// Formular abschicken
+// Formular absenden
 formCreate.addEventListener('submit', async e => {
   e.preventDefault();
   const title = inputTitle.value.trim();
@@ -198,18 +204,21 @@ formCreate.addEventListener('submit', async e => {
   }
   inputTitle.classList.remove('is-invalid');
 
-  const desc   = inputDesc.value.trim();
-  const dueVal = inputDue.value;
-  const due    = dueVal ? Timestamp.fromDate(new Date(dueVal)) : null;
+  const descVal = inputDesc.value.trim();
+  const dueVal  = inputDue.value;
+  const due     = dueVal
+    ? Timestamp.fromDate(new Date(dueVal))
+    : null;
   const selected = Array.from(
     participantsDiv.querySelectorAll('input:checked')
   ).map(i => i.value);
+
   const statuses = {};
   selected.forEach(uid => statuses[uid] = false);
 
   await addDoc(collection(db, 'bucketlist'), {
     title,
-    description: desc,
+    description: descVal,
     dueDate: due,
     participants: selected,
     statuses,
