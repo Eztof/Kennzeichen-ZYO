@@ -4,11 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Bucket List • Kennzeichen-ZYO</title>
-  <!-- Bootstrap CSS -->
   <link
     href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
     rel="stylesheet"
   >
+  <style>
+    /* Floating Action Button */
+    #btn-add {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      width: 3.5rem;
+      height: 3.5rem;
+      border-radius: 50%;
+      font-size: 1.5rem;
+      line-height: 1;
+    }
+  </style>
 </head>
 <body class="d-flex flex-column min-vh-100">
   <!-- Navbar -->
@@ -19,11 +31,69 @@
     </div>
   </nav>
 
-  <!-- Content -->
+  <!-- Hauptinhalt -->
   <div class="container my-4 flex-grow-1">
-    <h4>Bucket List</h4>
-    <!-- Hier kommt dein Bucket-List-Inhalt -->
-    <p>Deine Einträge …</p>
+    <div id="entriesList" class="list-group"></div>
+  </div>
+
+  <!-- Floating "+" Button -->
+  <button id="btn-add" class="btn btn-primary">+</button>
+
+  <!-- Create Modal -->
+  <div class="modal fade" id="modal-create" tabindex="-1">
+    <div class="modal-dialog modal-dialog-scrollable">
+      <div class="modal-content">
+        <form id="form-create">
+          <div class="modal-header">
+            <h5 class="modal-title">Eintrag erstellen</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="input-title" class="form-label">Titel <span class="text-danger">*</span></label>
+              <input type="text" id="input-title" class="form-control" required>
+            </div>
+            <div class="mb-3">
+              <label for="input-desc" class="form-label">Beschreibung</label>
+              <textarea id="input-desc" class="form-control" rows="3"></textarea>
+            </div>
+            <div class="mb-3">
+              <label for="input-due" class="form-label">Fällig bis</label>
+              <input type="date" id="input-due" class="form-control">
+            </div>
+            <fieldset class="mb-3">
+              <legend class="col-form-label">Beteiligte</legend>
+              <div id="create-participants"></div>
+            </fieldset>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+            <button type="submit" class="btn btn-primary">Speichern</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail Modal -->
+  <div class="modal fade" id="modal-detail" tabindex="-1">
+    <div class="modal-dialog modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="detail-title"></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p id="detail-desc"></p>
+          <p id="detail-due" class="text-muted"></p>
+          <h6>Beteiligte</h6>
+          <ul id="detail-participants" class="list-group"></ul>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Footer mit Version -->
@@ -31,9 +101,8 @@
     Version: <span id="app-version">…</span>
   </footer>
 
-  <!-- Bootstrap JS -->
+  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <!-- BucketList-Logic -->
   <script type="module" src="js/bucketlist.js"></script>
 </body>
 </html>
